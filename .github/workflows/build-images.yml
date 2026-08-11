@@ -1,0 +1,53 @@
+name: Build and Push OS Images
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'base/**'
+      - 'server/**'
+      - 'desktop/**'
+      - '.github/workflows/**'
+  schedule:
+    # Rebuild the whole image family every Sunday at 00:00 for the newest
+    # security updates.
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+# Sets the permission ceiling for every job below, including the reusable
+# build-image.yml calls — without this, GITHUB_TOKEN defaults to read-only
+# on packages and build-image.yml's own `packages: write` request is
+# rejected as exceeding what the caller is allowed to grant.
+permissions:
+  contents: read
+  packages: write
+
+# Every job runs on every trigger, in dependency order, so server/desktop
+# are never built against a stale published base. cache-from/cache-to (see
+# build-image.yml) keeps unchanged layers cheap.
+#
+#   base ──┬─→ server
+#          └─→ desktop
+jobs:
+  base:
+    uses: ./.github/workflows/build-image.yml
+    with:
+      flavor: base
+      containerfile: base/Containerfile
+
+  server:
+    needs: base
+    uses: ./.github/workflows/build-image.yml
+    with:
+      flavor: server
+      containerfile: server/Containerfile
+      build_args: BASE_IMAGE=ghcr.io/${{ github.repository }}/base:sha-${{ needs.base.outputs.short_sha }}
+
+  desktop:
+    needs: base
+    uses: ./.github/workflows/build-image.yml
+    with:
+      flavor: desktop
+      containerfile: desktop/Containerfile
+      build_args: BASE_IMAGE=ghcr.io/${{ github.repository }}/base:sha-${{ needs.base.outputs.short_sha }}

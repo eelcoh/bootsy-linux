@@ -1,0 +1,233 @@
+ARG BASE_IMAGE=ghcr.io/eelcoh/bootsy-linux/base:latest
+FROM ${BASE_IMAGE}
+
+# bootsy-desktop: Niri+DankMaterialShell, Sway, and COSMIC installed
+# side by side, switchable at login (see the tuigreet section below) rather
+# than three separate images the way kubevirt-host-bootc-image did it.
+# Niri+DMS is the default session. Plus a bluefin-dx-inspired developer
+# experience layer (Homebrew, Docker, VS Code, mise, Ptyxis, Flatpak).
+
+# ============================== Desktops ==============================
+#
+# All three DEs' packages plus their shared portal/audio/font stack, in one
+# transaction. Package names/versions confirmed directly against Fedora 44
+# repos (`dnf5 repoquery`) while building this image, no COPRs.
+#
+# - niri + DankMaterialShell: the default session (scrollable-tiling
+#   compositor + DMS's Quickshell-based bar/launcher/lock/notifications).
+# - sway + sway-config-fedora + waybar + swaylock/swayidle: i3-compatible
+#   wlroots compositor with Fedora's own stock config.
+# - cosmic-desktop (comps group, pulls in the compositor/panel/apps) +
+#   xdg-desktop-portal-cosmic: System76's COSMIC. cosmic-greeter isn't in
+#   the group's own mandatory/default package list, but cosmic-session
+#   (which is) hard-Requires it as of Fedora 44's packaging (confirmed:
+#   `dnf5 repoquery --whatrequires cosmic-greeter` lists every cosmic-session
+#   build), so it ends up installed regardless of not being asked for. It's
+#   explicitly disabled in the login section below — it's a self-contained
+#   display manager that would otherwise fight tuigreet for ownership of
+#   display-manager.service.
+# - alacritty: terminal for niri (matches its default Mod+T keybind) and
+#   sway; COSMIC uses its own cosmic-term from the group.
+# - xdg-desktop-portal(-gtk/-gnome/-wlr/-cosmic), gnome-keyring, polkit-kde,
+#   pipewire stack, Noto fonts: shared plumbing every session needs.
+RUN dnf -y install \
+    niri \
+    DankMaterialShell \
+    sway \
+    sway-config-fedora \
+    waybar \
+    swaylock \
+    swayidle \
+    xdg-desktop-portal-cosmic \
+    alacritty \
+    xdg-desktop-portal \
+    xdg-desktop-portal-gtk \
+    xdg-desktop-portal-gnome \
+    xdg-desktop-portal-wlr \
+    gnome-keyring \
+    polkit-kde \
+    greetd \
+    tuigreet \
+    pipewire \
+    pipewire-pulseaudio \
+    pipewire-alsa \
+    wireplumber \
+    google-noto-sans-fonts \
+    google-noto-emoji-fonts \
+    swaybg \
+    fedora-workstation-backgrounds \
+    && dnf -y group install cosmic-desktop \
+    && dnf clean all
+
+# ============================== Session entries ==============================
+#
+# Explicit wayland-sessions entries for all three, rather than trusting each
+# RPM's own file naming/labelling to stay stable across Fedora releases —
+# tuigreet's F3 picker (below) lists exactly these three, by these names.
+RUN mkdir -p /usr/share/wayland-sessions
+
+COPY <<-'EOF' /usr/share/wayland-sessions/niri.desktop
+[Desktop Entry]
+Name=Niri (DankMaterialShell)
+Comment=A scrollable-tiling Wayland compositor
+Exec=niri-session
+Type=Application
+EOF
+
+COPY <<-'EOF' /usr/share/wayland-sessions/sway.desktop
+[Desktop Entry]
+Name=Sway
+Comment=An i3-compatible tiling Wayland compositor
+Exec=sway
+Type=Application
+EOF
+
+COPY <<-'EOF' /usr/share/wayland-sessions/cosmic.desktop
+[Desktop Entry]
+Name=COSMIC
+Comment=System76's Rust/Wayland desktop environment
+Exec=cosmic-session
+Type=Application
+EOF
+
+# ============================== Per-DE wiring ==============================
+
+# niri: derive /etc/niri/config.kdl from niri's own shipped default (stays
+# in sync with whatever Fedora's build actually ships) rather than
+# hand-copying it; strip the waybar autostart line (DMS's DankBar replaces
+# it — this matters even with waybar installed above for sway's sake) and
+# add a wallpaper, since DMS's own wallpaper module starts empty until a
+# user picks one by hand.
+RUN mkdir -p /etc/niri \
+    && sed -e '/This line starts waybar/d' -e '/^spawn-at-startup "waybar"$/d' \
+    /usr/share/doc/niri/default-config.kdl > /etc/niri/config.kdl \
+    && printf '\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/fedora-workstation/mermaid_dark.webp" "-m" "fill"\n' \
+    >> /etc/niri/config.kdl
+
+RUN systemctl --global enable dms.service
+
+# sway: sway-config-fedora's /etc/sway/config includes every file under
+# /etc/sway/config.d/*.conf, so the wallpaper is wired up the same way as
+# its own bindings/rules snippets.
+COPY <<-'EOF' /etc/sway/config.d/40-wallpaper.conf
+output * bg /usr/share/backgrounds/fedora-workstation/mermaid_dark.webp fill
+EOF
+
+# cosmic: cosmic-config (the RON-based settings store every COSMIC
+# component uses) layers ~/.config/cosmic (highest) > /etc/xdg/cosmic
+# (admin override) > /usr/share/cosmic (vendor default, RPM-owned) — write
+# an /etc/xdg/cosmic override to point at Fedora's other official wallpaper
+# set instead of editing the package-owned vendor file.
+RUN mkdir -p /etc/xdg/cosmic/com.system76.CosmicBackground/v1
+COPY <<-'EOF' /etc/xdg/cosmic/com.system76.CosmicBackground/v1/all
+(
+    output: "all",
+    source: Path("/usr/share/backgrounds/fedora-workstation/mermaid_dark.webp"),
+    filter_by_theme: true,
+    rotation_frequency: 3600,
+    filter_method: Lanczos,
+    scaling_mode: Zoom,
+    sampling_method: Alphanumeric,
+)
+EOF
+
+# ============================== Login / session switching ==============================
+#
+# One greeter (tuigreet) drives login for all three sessions. It reads
+# /usr/share/wayland-sessions/*.desktop (the three entries above) on its
+# own; F3 opens the session picker, and --remember-user-session persists
+# each user's last pick across reboots, so "switch whenever I feel like it"
+# is: log out (or reboot), hit F3, pick the other one. --cmd sets the
+# default for first login (niri, per bootsy-desktop's default). Fedora's
+# `greetd` RPM ships its own sysusers.d entry creating a `greetd` system
+# user, so no manual user/tmpfiles wiring is needed the way DankMaterial
+# Shell's own bundled greeter would require.
+COPY <<-'EOF' /etc/greetd/config.toml
+[terminal]
+vt = 1
+
+[default_session]
+command = "tuigreet --remember --remember-user-session --cmd niri-session"
+user = "greetd"
+EOF
+
+# cosmic-session's hard dependency on cosmic-greeter (see the desktops
+# section above) means its %post scriptlet already claimed
+# display-manager.service for cosmic-greeter.service by the time this runs.
+# `disable` removes that alias (cosmic-greeter.service declares it via its
+# own [Install] Alias=, so plain `disable` — not just a raw symlink rm — is
+# enough); `enable --force` then overwrites it with greetd's.
+RUN systemctl disable cosmic-greeter.service \
+    && systemctl enable --force greetd.service
+
+# ============================== Developer experience (bluefin-dx-inspired) ==============================
+#
+# Ported from Bluefin DX's own documented component list, not a full 1:1
+# clone (skips Incus, JetBrains Toolbox, GPU compute libs, and kernel
+# tracing tools — not asked for, easy to add later following this same
+# pattern): Homebrew for CLI tools, Docker for devcontainer workflows,
+# VS Code as the default editor, mise for per-project toolchains, Ptyxis
+# as a distrobox-integrated terminal alongside alacritty, and Flatpak for
+# graphical apps.
+
+# Docker Engine: Fedora's own repos don't ship docker-ce (Fedora pushes
+# podman instead), so this is the one deliberate departure from the
+# Fedora-only-no-third-party-repo rule the base/server images follow —
+# Docker's official repo is about as first-party as a third-party repo
+# gets. The config-manager subcommand isn't in dnf5 itself, it needs the
+# dnf5-plugins package first; syntax (`addrepo --from-repofile=`) also
+# differs from dnf4's `--add-repo`.
+RUN dnf -y install dnf5-plugins \
+    && dnf5 config-manager addrepo --from-repofile=https://download.docker.com/linux/fedora/docker-ce.repo \
+    && dnf -y install \
+    docker-ce \
+    docker-ce-cli \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-compose-plugin \
+    && dnf clean all \
+    && systemctl enable docker.service
+# Add your login user to the `docker` group after first boot (no user
+# account exists yet at build time): sudo usermod -aG docker $USER
+
+# Homebrew: bakes in via ublue-os/brew's own documented pattern rather than
+# running the installer at build time (Homebrew refuses to run as root,
+# which is what a Containerfile RUN step is). This COPY --from lands the
+# packed Homebrew tree plus a `brew-setup.service` that extracts it to
+# /var/home/linuxbrew/.linuxbrew and fixes ownership on first boot, when a
+# real non-root user context exists.
+COPY --from=ghcr.io/ublue-os/brew:latest /system_files /
+RUN systemctl enable brew-setup.service
+
+# VS Code: Microsoft's official repo, the standard documented install path.
+RUN rpm --import https://packages.microsoft.com/keys/microsoft.asc
+COPY <<-'EOF' /etc/yum.repos.d/vscode.repo
+[code]
+name=Visual Studio Code
+baseurl=https://packages.microsoft.com/yumrepos/vscode
+enabled=1
+gpgcheck=1
+gpgkey=https://packages.microsoft.com/keys/microsoft.asc
+EOF
+RUN dnf -y install code && dnf clean all
+
+# mise: not packaged by Fedora, installed via its own official script
+# straight to /usr/local/bin (MISE_INSTALL_PATH overrides its normal
+# per-user ~/.local/bin default, appropriate for a system image).
+RUN curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
+
+# Ptyxis (distrobox-integrated terminal) and Just (task runner): plain
+# Fedora 44 packages, no extra repo needed.
+RUN dnf -y install ptyxis just && dnf clean all
+
+# Flatpak + Flathub, for graphical apps outside the RPM/Homebrew tiers.
+RUN dnf -y install flatpak \
+    && dnf clean all \
+    && flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+# ============================== Boot target ==============================
+#
+# Unlike bootsy-server, bootsy-desktop boots straight to the greeter —
+# without this the host stays on base's console default and greetd never
+# runs, leaving a bare tty.
+RUN systemctl set-default graphical.target

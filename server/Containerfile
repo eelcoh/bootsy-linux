@@ -1,0 +1,233 @@
+ARG BASE_IMAGE=ghcr.io/eelcoh/bootsy-linux/base:latest
+FROM ${BASE_IMAGE}
+
+# bootsy-server: everything kubevirt-host-bootc-image split into three
+# layered flavors (k3s / kubevirt / agent-runtime), combined into one image
+# here since bootsy only ever ships a single server variant. Also carries a
+# basic Niri+DankMaterialShell desktop for when the box is plugged into a
+# monitor directly — the box still boots headless by default (see the last
+# section), the desktop is there on demand.
+
+ARG SUBSTRATE_VERSION=v0.0.0
+
+# ============================== K3s ==============================
+
+# K3s's default CNI (flannel/vxlan) and the workloads layered on top
+# (KubeVirt's device plugin, Agent Substrate's sandboxed actors) need more
+# than Fedora's default targeted SELinux policy allows. Persisted at build
+# time rather than a per-boot `setenforce 0`.
+RUN sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
+
+# Install K3s straight into the image (no network needed on first boot).
+# INSTALL_K3S_SKIP_ENABLE=true: the installer's own enable step runs
+# `systemctl daemon-reload`, which needs a live systemd bus that doesn't
+# exist during a container build. Enabled explicitly below instead.
+RUN curl -sfL https://get.k3s.io | INSTALL_K3S_SKIP_START=true INSTALL_K3S_SKIP_ENABLE=true sh -s - server \
+    --disable=traefik \
+    --disable=servicelb \
+    --write-kubeconfig-mode=644
+
+COPY <<-'EOF' /etc/profile.d/k3s-kubeconfig.sh
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+EOF
+
+RUN systemctl enable k3s.service
+
+# ============================== KubeVirt ==============================
+
+# Install virtctl and record the resolved version, so the first-boot
+# bootstrap script below always deploys the exact same release it was
+# built against instead of re-resolving "latest" at runtime.
+RUN KUBEVIRT_VERSION=$(curl -s https://storage.googleapis.com/kubevirt-prow/release/kubevirt/kubevirt/stable.txt) \
+    && echo "Found stable KubeVirt version: ${KUBEVIRT_VERSION}" \
+    && curl -LO "https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/virtctl-${KUBEVIRT_VERSION}-linux-amd64" \
+    && chmod +x "virtctl-${KUBEVIRT_VERSION}-linux-amd64" \
+    && mv "virtctl-${KUBEVIRT_VERSION}-linux-amd64" /usr/local/bin/virtctl \
+    && echo -n "${KUBEVIRT_VERSION}" > /etc/kubevirt-version
+
+COPY <<-'EOF' /usr/local/bin/bootstrap-kubevirt.sh
+#!/bin/bash
+set -e
+
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+until kubectl get nodes >/dev/null 2>&1; do
+    echo "Waiting for local K3s node status..."
+    sleep 3
+done
+
+if ! kubectl get namespace kubevirt >/dev/null 2>&1; then
+    KUBEVIRT_VERSION=$(cat /etc/kubevirt-version)
+    echo "Deploying KubeVirt Operator version ${KUBEVIRT_VERSION}..."
+    kubectl create -f "https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/kubevirt-operator.yaml"
+    kubectl create -f "https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/kubevirt-cr.yaml"
+fi
+
+echo "KubeVirt bootstrap complete."
+EOF
+RUN chmod +x /usr/local/bin/bootstrap-kubevirt.sh
+
+COPY <<-'EOF' /usr/lib/systemd/system/kubevirt-bootstrap.service
+[Unit]
+Description=Automated Single-Box KubeVirt Bootstrapper
+After=k3s.service
+Requires=k3s.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/bootstrap-kubevirt.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+RUN systemctl enable kubevirt-bootstrap.service
+
+# ============================== Agent Substrate ==============================
+
+# Agent Substrate ships no pre-built binaries (source tags only), so this
+# needs a Go toolchain to build its control plane from source. docker-
+# distribution is a local, anonymous OCI registry: Substrate's own install
+# script builds images with `ko` and pushes them somewhere, and there's no
+# external registry to point at on a single-box appliance, so it runs one
+# itself.
+RUN dnf -y install \
+    golang \
+    docker-distribution \
+    && dnf clean all
+
+RUN git clone --branch "${SUBSTRATE_VERSION}" --depth 1 \
+    https://github.com/agent-substrate/substrate /opt/agent-substrate \
+    && echo -n "${SUBSTRATE_VERSION}" > /etc/agent-substrate-version
+
+# Points K3s's containerd at the local registry as a plain-HTTP mirror, so
+# images `ko` pushes to localhost:5000 can be pulled by the cluster. Only
+# correct because this is always a single-node cluster (containerd and the
+# registry share "localhost").
+COPY <<-'EOF' /etc/rancher/k3s/registries.yaml
+mirrors:
+  "localhost:5000":
+    endpoint:
+      - "http://localhost:5000"
+EOF
+
+COPY <<-'EOF' /usr/local/bin/bootstrap-agent-substrate.sh
+#!/bin/bash
+set -e
+
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+until kubectl get nodes >/dev/null 2>&1; do
+    echo "Waiting for local K3s node status..."
+    sleep 3
+done
+
+until curl -sf http://localhost:5000/v2/ >/dev/null 2>&1; do
+    echo "Waiting for local container registry..."
+    sleep 2
+done
+
+if ! kubectl get namespace ate-system >/dev/null 2>&1; then
+    echo "Deploying Agent Substrate control plane ($(cat /etc/agent-substrate-version))..."
+    export KO_DOCKER_REPO=localhost:5000/ate
+    cd /opt/agent-substrate
+    ./hack/install-ate.sh --deploy-ate-system
+fi
+
+echo "Agent Substrate control plane ready. Deploy actors via"
+echo "ActorTemplates/WorkerPools/SandboxConfigs -- see"
+echo "https://github.com/agent-substrate/substrate/tree/main/demos"
+EOF
+RUN chmod +x /usr/local/bin/bootstrap-agent-substrate.sh
+
+COPY <<-'EOF' /usr/lib/systemd/system/agent-substrate-bootstrap.service
+[Unit]
+Description=Automated Single-Box Agent Substrate Bootstrapper
+After=k3s.service docker-distribution.service
+Requires=k3s.service docker-distribution.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# ko building/pushing plus per-component rollout waits routinely exceed
+# systemd's default 90s unit-start timeout.
+TimeoutStartSec=0
+ExecStart=/usr/local/bin/bootstrap-agent-substrate.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+RUN systemctl enable docker-distribution.service agent-substrate-bootstrap.service
+
+# ============================== Basic Niri+DMS desktop ==============================
+
+# Deliberately "basic": a single fixed session (no picker, unlike
+# bootsy-desktop's three), no theming, no dev-experience layer. It's here so
+# a monitor plugged into the box gets a usable desktop, not as the primary
+# way to use bootsy-server.
+#
+# Login uses tuigreet rather than DankMaterialShell's own bundled greeter:
+# Fedora ships no `dms-greeter` RPM (DMS's manual-install fallback requires
+# a hand-rolled greeter system user + tmpfiles wiring), and bootsy-desktop
+# already needs a generic, non-DMS-specific greeter for its 3-way session
+# picker. Reusing the same mechanism here avoids maintaining two different
+# login stacks. DankMaterialShell itself is unaffected: `dms.service` (a
+# systemd --user unit wanted by graphical-session.target) still starts the
+# moment `niri-session` brings up a session, regardless of which greeter
+# invoked it.
+RUN dnf -y install \
+    niri \
+    DankMaterialShell \
+    alacritty \
+    xdg-desktop-portal \
+    xdg-desktop-portal-gtk \
+    xdg-desktop-portal-gnome \
+    gnome-keyring \
+    polkit-kde \
+    greetd \
+    tuigreet \
+    pipewire \
+    pipewire-pulseaudio \
+    pipewire-alsa \
+    wireplumber \
+    google-noto-sans-fonts \
+    google-noto-emoji-fonts \
+    swaybg \
+    fedora-workstation-backgrounds \
+    && dnf clean all
+
+# Derive /etc/niri/config.kdl from niri's own shipped default rather than
+# hand-copying it, so it stays in sync with whatever default Fedora's niri
+# build actually ships; only change is dropping the waybar autostart line
+# (DMS's DankBar replaces it) and adding a wallpaper.
+RUN mkdir -p /etc/niri \
+    && sed -e '/This line starts waybar/d' -e '/^spawn-at-startup "waybar"$/d' \
+    /usr/share/doc/niri/default-config.kdl > /etc/niri/config.kdl \
+    && printf '\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/fedora-workstation/mermaid_dark.webp" "-m" "fill"\n' \
+    >> /etc/niri/config.kdl
+
+# Explicit wayland-sessions entry rather than trusting the niri RPM's own
+# file naming/labelling to stay stable across Fedora releases.
+COPY <<-'EOF' /usr/share/wayland-sessions/niri.desktop
+[Desktop Entry]
+Name=Niri (DankMaterialShell)
+Comment=A scrollable-tiling Wayland compositor
+Exec=niri-session
+Type=Application
+EOF
+
+COPY <<-'EOF' /etc/greetd/config.toml
+[terminal]
+vt = 1
+
+[default_session]
+command = "tuigreet --remember --remember-session --cmd niri-session"
+EOF
+
+RUN systemctl --global enable dms.service \
+    && systemctl enable greetd.service
+
+# Server stays headless by default (base already set multi-user.target);
+# bring the desktop up on demand:
+#   sudo systemctl start graphical.target       # this boot only
+#   sudo systemctl set-default graphical.target  # persist across reboots

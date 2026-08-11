@@ -1,0 +1,51 @@
+FROM quay.io/fedora/fedora-bootc:44
+
+# bootsy-linux's shared base for both bootsy-server and bootsy-desktop.
+# Directly descended from https://github.com/eelcoh/kubevirt-host-bootc-image
+# (see that repo's CLAUDE.md for the fuller rationale behind fedora-bootc as
+# the base and each of the steps below) — condensed here since this repo
+# only ever builds two flavors on top of it, not eight.
+
+# 1. Boot headless (console) by default. Flavors that need a desktop up
+# bring it up themselves (server: on demand; desktop: always, see its own
+# Containerfile's last step).
+RUN systemctl set-default multi-user.target
+
+# 2. KVM/libvirt, available on every flavor for free — bootsy-server uses it
+# directly (KubeVirt), bootsy-desktop gets it for running local VMs.
+RUN dnf -y install \
+    qemu-kvm \
+    libvirt \
+    virt-install \
+    util-linux \
+    iptables \
+    iscsi-initiator-utils \
+    && dnf clean all
+
+# systemd-remount-fs.service fails every boot on this composefs-based root
+# (`fsconfig() failed: overlay: No changes allowed in reconfigure` —
+# upstream ostree/bootc issue, not specific to this image). It's a `static`
+# unit with no [Install] section, so `disable` can't touch it; masking is
+# the only way to stop it running.
+RUN systemctl mask systemd-remount-fs.service \
+    && systemctl enable sshd.service
+
+# 3. Baseline interactive tooling for every flavor: zsh as the default
+# shell, chezmoi for dotfiles, atuin/zoxide for shell ergonomics,
+# distrobox for ad-hoc containers (its podman-or-docker dependency is
+# already satisfied by fedora-bootc's own podman). zsh is made the default
+# for root and for any account `useradd` creates afterwards; per-flavor
+# service accounts (e.g. desktop's greeter user) set their own `-s` and are
+# unaffected.
+RUN dnf -y install \
+    git \
+    zsh \
+    chezmoi \
+    atuin \
+    zoxide \
+    htop \
+    btop \
+    distrobox \
+    && dnf clean all \
+    && usermod --shell /usr/bin/zsh root \
+    && useradd -D -s /usr/bin/zsh
