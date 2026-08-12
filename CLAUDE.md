@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-My personal Linux flavor: two [bootc](https://containers.github.io/bootc/) (bootable container) OS images built from a common `base`:
+Not a distro — my personal configuration of Fedora's own [bootc](https://containers.github.io/bootc/) image, built as two Containerfiles on a common `base`:
 
 - **base** — plain Fedora bootc + KVM/libvirt + zsh/chezmoi/atuin/dev tooling. No desktop, no Kubernetes. Not published/used standalone, just the shared parent.
 - **server** — base + K3s + KubeVirt + Agent Substrate, all combined into one image (not three layered flavors), plus a basic Niri+DankMaterialShell desktop for when a monitor's plugged in. Boots headless by default.

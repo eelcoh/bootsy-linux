@@ -1,10 +1,22 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="branding/bootsy-boxed-dark.svg">
+    <img src="branding/bootsy-boxed.svg" alt="bootsy-linux" width="96" height="96">
+  </picture>
+</p>
+
 # bootsy-linux
 
-My personal Linux flavor: two [bootc](https://containers.github.io/bootc/)
-(bootable container) OS images, `bootsy-server` and `bootsy-desktop`, both
-built from a common `base`. Everything is baked into the image at build
-time — a box needs no network access on first boot to come up working, and
-SSH (`sshd.service`) is enabled out of the box on both flavors.
+**Not a distro** — my personal configuration of Fedora's own
+[bootc](https://containers.github.io/bootc/) image. Two Containerfiles,
+`server` and `desktop`, layered on a shared `base` that's itself just
+`quay.io/fedora/fedora-bootc:44` plus some `dnf install`s and config. No
+separate package repository, no installer branding, no release cadence of
+its own — it's Fedora underneath, start to finish, just built the way I
+want it out of the box instead of configured by hand after the fact.
+Everything is baked into the image at build time — a box needs no network
+access on first boot to come up working, and SSH (`sshd.service`) is
+enabled out of the box on both flavors.
 
 Descended from an earlier, more fragmented study,
 [kubevirt-host-bootc-image](https://github.com/eelcoh/kubevirt-host-bootc-image)
