@@ -151,6 +151,11 @@ RemainAfterExit=yes
 # ko building/pushing plus per-component rollout waits routinely exceed
 # systemd's default 90s unit-start timeout.
 TimeoutStartSec=0
+# Without an explicit User=, systemd doesn't populate $HOME for this unit.
+# hack/install-ate.sh's `go tool ko` needs it to resolve GOPATH/GOMODCACHE
+# (both default to paths under $HOME) -- unset, it fails with "module cache
+# not found: neither GOMODCACHE nor GOPATH is set".
+Environment=HOME=/root
 ExecStart=/usr/local/bin/bootstrap-agent-substrate.sh
 
 [Install]
