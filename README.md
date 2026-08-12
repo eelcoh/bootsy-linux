@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="branding/bootsy-boxed-dark.svg">
-    <img src="branding/bootsy-boxed.svg" alt="bootsy-linux" width="96" height="96">
+    <source media="(prefers-color-scheme: dark)" srcset="branding/bootsy-wordmark-dark.svg">
+    <img src="branding/bootsy-wordmark.svg" alt="bootsy-linux" height="72">
   </picture>
 </p>
 

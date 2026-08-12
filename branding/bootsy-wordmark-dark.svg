@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 96" width="340" height="96">
+  <title>bootsy-linux</title>
+  <svg x="0" y="0" width="96" height="96" viewBox="0 0 120 120">
+    <rect x="18" y="18" width="84" height="84" rx="20" fill="#ECEEF2"/>
+    <path d="M42,72 L60,40 L78,72" fill="#39FFB0" stroke="#39FFB0" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <text x="124" y="68" font-family="ui-monospace, 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace" font-size="52" font-weight="700" letter-spacing="-1" fill="#ECEEF2">bootsy</text>
+</svg>
