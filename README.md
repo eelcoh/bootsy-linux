@@ -160,6 +160,10 @@ to your `~/.zshrc` to enable it, e.g. via chezmoi), `just` (task runner),
 `ptyxis` (a distrobox-integrated terminal alongside alacritty), and
 `flatpak` (Flathub already added as a remote).
 
+Every interactive shell also opens with a `fastfetch` banner (the Boxed
+logo plus OS/kernel/CPU/memory info) — wired up in `base`, so it's on both
+flavors.
+
 SSH stays available on both flavors regardless of the boot target.
 
 ## Troubleshooting

@@ -23,6 +23,10 @@ kubectl get pods -n ate-system
 `KUBECONFIG` is already exported for every shell via
 `/etc/profile.d/k3s-kubeconfig.sh`.
 
+Every interactive shell also opens with a `fastfetch` banner (the Boxed
+logo plus OS/kernel/CPU/memory info) — wired up in `base`, so it's on
+both flavors.
+
 ## Deploying containers to K3s
 
 A normal single-node K3s cluster — `traefik` and `servicelb` are disabled
