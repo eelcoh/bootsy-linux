@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <title>bootsy-linux — Boxed mark (for dark backgrounds)</title>
+  <rect x="18" y="18" width="84" height="84" rx="20" fill="none" stroke="#ECEEF2" stroke-width="9"/>
+  <path d="M42,72 L60,40 L78,72" fill="none" stroke="#39FFB0" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
