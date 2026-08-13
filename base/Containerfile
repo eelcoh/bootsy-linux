@@ -49,3 +49,54 @@ RUN dnf -y install \
     && dnf clean all \
     && usermod --shell /usr/bin/zsh root \
     && useradd -D -s /usr/bin/zsh
+
+# 5. Fastfetch banner on every interactive shell, using the Boxed logomark.
+# The ASCII art is COPYed in from branding/ rather than inlined as a heredoc
+# so it stays a single source of truth with the SVG/wordmark it's derived
+# from. /etc/zshrc (unlike /etc/profile.d) is sourced for both login and
+# non-login interactive shells, which is what terminal emulators actually
+# spawn, so that's where the invocation goes rather than the profile.d
+# pattern used for env vars elsewhere in this repo.
+RUN dnf -y install fastfetch && dnf clean all
+COPY branding/bootsy-boxed.txt /etc/fastfetch/bootsy-boxed.txt
+COPY <<-'EOF' /etc/xdg/fastfetch/config.jsonc
+{
+    "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema/config.json",
+    "logo": {
+        "type": "file",
+        "source": "/etc/fastfetch/bootsy-boxed.txt"
+    },
+    "modules": [
+        "title",
+        "separator",
+        "os",
+        "host",
+        "kernel",
+        "uptime",
+        "packages",
+        "shell",
+        "display",
+        "de",
+        "wm",
+        "wmtheme",
+        "theme",
+        "icons",
+        "font",
+        "cursor",
+        "terminal",
+        "terminalfont",
+        "cpu",
+        "gpu",
+        "memory",
+        "swap",
+        "disk",
+        "localip",
+        "battery",
+        "poweradapter",
+        "locale",
+        "break",
+        "colors"
+    ]
+}
+EOF
+RUN printf '\n# bootsy-linux: show the Boxed banner on every interactive shell.\nfastfetch\n' >> /etc/zshrc
