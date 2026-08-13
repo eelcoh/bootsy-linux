@@ -116,6 +116,23 @@ are all compatible per its own docs). See
 for worked examples. Images you build for your own actors can go through the
 same local registry the bootstrap script uses: `localhost:5000`.
 
+## PostgreSQL
+
+A native host service, not a K3s workload — it comes up on boot regardless
+of cluster state. Data lives under `/var/lib/pgsql/data`, initialized once
+by `postgresql-bootstrap.service` on first boot.
+
+```sh
+sudo -u postgres psql                          # local admin shell
+sudo -u postgres createuser --pwprompt myapp
+sudo -u postgres createdb --owner=myapp myapp
+```
+
+Fedora's defaults ship as-is: listening on `localhost` only, peer/ident
+auth for local connections. If you need it reachable from K3s pods or over
+the network, that's on you to configure (`postgresql.conf`'s
+`listen_addresses`, `pg_hba.conf`) — nothing here changes those defaults.
+
 ## The bundled desktop
 
 `niri` + `DankMaterialShell` is installed but the box boots headless
@@ -139,6 +156,8 @@ journalctl -u k3s.service
 journalctl -u kubevirt-bootstrap.service
 journalctl -u agent-substrate-bootstrap.service
 journalctl -u docker-distribution.service
+journalctl -u postgresql-bootstrap.service
+journalctl -u postgresql.service
 kubectl get pods -n kubevirt     # operator/virt-* components stuck/crashlooping
 kubectl get pods -n ate-system   # Substrate control plane stuck/crashlooping
 ```

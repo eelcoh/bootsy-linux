@@ -28,7 +28,7 @@ about *using* the appliances once installed.
 | Image | What it is |
 |---|---|
 | `ghcr.io/eelcoh/bootsy-linux/base` | Plain Fedora bootc + KVM/libvirt + zsh/chezmoi/dev tooling. No desktop, no Kubernetes. Not published/used standalone — the shared parent of both flavors below. |
-| `ghcr.io/eelcoh/bootsy-linux/server` | base + K3s + KubeVirt + Agent Substrate, all in one image, plus a basic Niri+DankMaterialShell desktop for when a monitor's plugged in. Boots headless by default. See [`server/README.md`](server/README.md). |
+| `ghcr.io/eelcoh/bootsy-linux/server` | base + K3s + KubeVirt + Agent Substrate + PostgreSQL, all in one image, plus a basic Niri+DankMaterialShell desktop for when a monitor's plugged in. Boots headless by default. See [`server/README.md`](server/README.md). |
 | `ghcr.io/eelcoh/bootsy-linux/desktop` | base + Niri/DankMaterialShell (default), Sway, and COSMIC, switchable at login, plus a bluefin-dx-inspired developer experience layer (Homebrew, Docker, VS Code, mise, Flatpak). No Kubernetes. Boots to the login screen. |
 
 ## Prerequisites

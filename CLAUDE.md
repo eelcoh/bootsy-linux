@@ -95,12 +95,13 @@ SELinux is left at Fedora's default `enforcing` in `base`. `server` flips it to 
 
 ## server/Containerfile
 
-`FROM` base, four sections in this order — preserve the order, each depends on the previous:
+`FROM` base, five sections in this order — preserve the order; the first three depend on each other, the last two are independent of them and of each other:
 
 1. **K3s** — SELinux to permissive, `curl https://get.k3s.io | ... sh -s - server --disable=traefik --disable=servicelb --write-kubeconfig-mode=644` baked into the image (`INSTALL_K3S_SKIP_ENABLE=true`, since the installer's own enable step needs a live systemd bus that doesn't exist during a container build — `systemctl enable k3s.service` is done explicitly instead), `/etc/profile.d/k3s-kubeconfig.sh` so every shell has `KUBECONFIG` set.
 2. **KubeVirt** — resolves the current stable release tag at build time, installs `virtctl`, writes `/etc/kubevirt-version` as the single source of truth a first-boot `kubevirt-bootstrap.service` reads from. Version pinning is build-time-only; nothing at runtime re-resolves "latest".
 3. **Agent Substrate** — built from source (`golang` toolchain, no prebuilt binaries published) at a pinned `SUBSTRATE_VERSION` build arg (default `v0.0.0`, which is genuinely the only tag `agent-substrate/substrate` has published as of this writing — bump the default, and any CI build-args, when that changes). Runs its own local anonymous OCI registry (`docker-distribution`) since there's nothing to `kubectl apply` the way KubeVirt has; `agent-substrate-bootstrap.service` waits for K3s *and* that registry, then runs Substrate's own `hack/install-ate.sh`.
-4. **Basic Niri+DMS desktop** — same package set and `niri-session`/DMS wiring as `desktop/Containerfile`'s niri parts, but single-session (no picker, no theming, no dev layer) and left off the default boot target. See "Descended from..." above for why `tuigreet` and not DMS's own greeter.
+4. **PostgreSQL** — a native host service, not a K3s workload: plain `postgresql-server` from Fedora's repos, data under `/var/lib/pgsql/data`, runs independently of K3s/KubeVirt/Substrate and of cluster state. Fedora's RPM deliberately skips auto-`initdb` on first start (avoids clobbering a slow-to-mount remote `PGDATA` — see `/usr/libexec/postgresql-check-db-dir`), so a `postgresql-bootstrap.service` (`ConditionPathExists=!/var/lib/pgsql/data/PG_VERSION`, ordered `Before=postgresql.service`) runs `postgresql-setup --initdb` once, the same first-boot-bootstrap shape used for KubeVirt/Substrate above. No network exposure or auth changes beyond the RPM's own defaults (localhost-only) — deliberately left that way until there's an actual consumer that needs otherwise.
+5. **Basic Niri+DMS desktop** — same package set and `niri-session`/DMS wiring as `desktop/Containerfile`'s niri parts, but single-session (no picker, no theming, no dev layer) and left off the default boot target. See "Descended from..." above for why `tuigreet` and not DMS's own greeter.
 
 ## desktop/Containerfile
 
