@@ -266,7 +266,11 @@ vt = 1
 command = "tuigreet --remember --remember-session --cmd niri-session"
 EOF
 
-RUN systemctl --global enable dms.service \
+# DMS upstream's Fedora integration attaches the shell directly to Niri's
+# user service.  Merely enabling dms.service globally does not guarantee it
+# is pulled into niri-session's user-systemd transaction, which can leave a
+# running compositor without DankBar.
+RUN systemctl --global add-wants niri.service dms.service \
     && systemctl enable greetd.service
 
 # Server stays headless by default (base already set multi-user.target);

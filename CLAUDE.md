@@ -8,7 +8,7 @@ Not a distro — my personal configuration of Fedora's own [bootc](https://conta
 
 - **base** — plain Fedora bootc + KVM/libvirt + zsh/chezmoi/atuin/dev tooling. No desktop, no Kubernetes. Not published/used standalone, just the shared parent.
 - **server** — base + K3s + KubeVirt + Agent Substrate, all combined into one image (not three layered flavors), plus a basic Niri+DankMaterialShell desktop for when a monitor's plugged in. Boots headless by default.
-- **desktop** — base + Niri/DankMaterialShell (default), Sway, and COSMIC, all three installed side by side and switchable at login via `tuigreet`'s session picker, plus a bluefin-dx-inspired developer experience layer (Homebrew, Docker, VS Code, mise, Ptyxis, Flatpak). Boots to the login screen.
+- **desktop** — base + Niri/DankMaterialShell, Sway, and COSMIC, all three installed side by side and switchable from the graphical COSMIC greeter, plus a bluefin-dx-inspired developer experience layer (Homebrew, Docker, VS Code, mise, Ptyxis, Flatpak). Boots to the login screen.
 
 There is no application code — the entire project is the image definitions plus the CI pipeline that builds and publishes them.
 
@@ -27,29 +27,12 @@ Containerfile:
    order, rather than as separate `k3s`/`kubevirt`/`agent-runtime` images.
    There's no scenario here where you want K3s without KubeVirt or Substrate,
    so the extra image-graph complexity wasn't worth it.
-2. **`tuigreet` drives login everywhere, not DankMaterialShell's own bundled
-   greeter.** The reference repo's niri flavor used DMS's own greeter via a
-   hand-rolled fallback (a `greeter` system user + manual tmpfiles wiring),
-   because Fedora ships no `dms-greeter` RPM. bootsy-desktop needs a generic,
-   session-agnostic greeter anyway (to pick between niri/sway/cosmic at
-   login), so both `server` and `desktop` standardize on `tuigreet` instead —
-   one login mechanism, no greeter-specific user wiring, no Fedora packaging
-   gap to work around. DankMaterialShell itself is unaffected: `dms.service`
-   (a systemd `--user` unit wanted by `graphical-session.target`) starts
-   however `niri-session` gets invoked, regardless of which greeter called it.
-3. **`cosmic-greeter` is installed but disabled, not skipped.** `desktop`
-   needs one greeter across three sessions, so `cosmic-greeter` (a
-   self-contained display manager that claims `display-manager.service` for
-   itself) can't be the one driving login. It can't be left out of the
-   package set either, though: `cosmic-session` — mandatory in the
-   `cosmic-desktop` comps group — hard-`Requires: cosmic-greeter` as of
-   Fedora 44's packaging (confirmed with `dnf5 repoquery --whatrequires
-   cosmic-greeter`), so it's pulled in regardless. `desktop/Containerfile`
-   explicitly `systemctl disable`s it and force-enables `greetd` over it
-   (`systemctl enable --force greetd.service`) rather than assuming it's
-   absent. `/usr/share/wayland-sessions/*.desktop` entries are written
-   explicitly for all three sessions instead of trusting each DE's RPM to
-   ship one with a stable name.
+2. **The two flavors use greeters appropriate to their scope.** Server keeps
+   the small `greetd` + `tuigreet` login path for its optional single Niri
+   session. Desktop uses `cosmic-greeter`, which is already required by the
+   COSMIC package set and provides a graphical chooser for Niri, Sway, and
+   COSMIC. `/usr/share/wayland-sessions/*.desktop` entries are written
+   explicitly for all three desktop sessions.
 
 Also dropped from the reference repo, deliberately, as things nobody asked
 for here and easy to add later the same way they were added there: the
@@ -101,16 +84,16 @@ SELinux is left at Fedora's default `enforcing` in `base`. `server` flips it to 
 2. **KubeVirt** — resolves the current stable release tag at build time, installs `virtctl`, writes `/etc/kubevirt-version` as the single source of truth a first-boot `kubevirt-bootstrap.service` reads from. Version pinning is build-time-only; nothing at runtime re-resolves "latest".
 3. **Agent Substrate** — built from source (`golang` toolchain, no prebuilt binaries published) at a pinned `SUBSTRATE_VERSION` build arg (default `v0.0.0`, which is genuinely the only tag `agent-substrate/substrate` has published as of this writing — bump the default, and any CI build-args, when that changes). Runs its own local anonymous OCI registry (`docker-distribution`) since there's nothing to `kubectl apply` the way KubeVirt has; `agent-substrate-bootstrap.service` waits for K3s *and* that registry, then runs Substrate's own `hack/install-ate.sh`.
 4. **PostgreSQL** — a native host service, not a K3s workload: plain `postgresql-server` from Fedora's repos, data under `/var/lib/pgsql/data`, runs independently of K3s/KubeVirt/Substrate and of cluster state. Fedora's RPM deliberately skips auto-`initdb` on first start (avoids clobbering a slow-to-mount remote `PGDATA` — see `/usr/libexec/postgresql-check-db-dir`), so a `postgresql-bootstrap.service` (`ConditionPathExists=!/var/lib/pgsql/data/PG_VERSION`, ordered `Before=postgresql.service`) runs `postgresql-setup --initdb` once, the same first-boot-bootstrap shape used for KubeVirt/Substrate above. No network exposure or auth changes beyond the RPM's own defaults (localhost-only) — deliberately left that way until there's an actual consumer that needs otherwise.
-5. **Basic Niri+DMS desktop** — same package set and `niri-session`/DMS wiring as `desktop/Containerfile`'s niri parts, but single-session (no picker, no theming, no dev layer) and left off the default boot target. See "Descended from..." above for why `tuigreet` and not DMS's own greeter.
+5. **Basic Niri+DMS desktop** — same package set and `niri-session`/DMS wiring as `desktop/Containerfile`'s niri parts, but single-session (no picker, no theming, no dev layer) and left off the default boot target. It retains the lightweight `greetd` + `tuigreet` login path.
 
 ## desktop/Containerfile
 
 `FROM` base, five sections in this order:
 
-1. **Desktops** — one `dnf install` for all three DEs' packages plus shared portal/audio/font plumbing. `cosmic-desktop` is a comps group (`dnf group install`); `cosmic-greeter` is deliberately *not* installed (see "Descended from..." above). Package names/versions were confirmed directly against live Fedora 44 repos while building this image (`dnf5 repoquery`), not assumed — same verification discipline the reference repo used. No COPRs for anything in this section.
-2. **Session entries** — explicit `/usr/share/wayland-sessions/{niri,sway,cosmic}.desktop`, so `tuigreet`'s F3 picker always shows exactly these three, under these names, regardless of what each RPM does or doesn't ship on its own.
+1. **Desktops** — one `dnf install` for all three DEs' packages plus shared portal/audio/font plumbing. `cosmic-desktop` is a comps group (`dnf group install`) and pulls in `cosmic-greeter`. Package names/versions were confirmed directly against live Fedora 44 repos while building this image (`dnf5 repoquery`), not assumed — same verification discipline the reference repo used. No COPRs for anything in this section.
+2. **Session entries** — explicit `/usr/share/wayland-sessions/{niri,sway,cosmic}.desktop`, so the graphical greeter always shows these three stable names and commands.
 3. **Per-DE wiring** — niri's `/etc/niri/config.kdl` derived from niri's own shipped default (waybar autostart line stripped, wallpaper added); sway's wallpaper via `/etc/sway/config.d/40-wallpaper.conf` (picked up by `sway-config-fedora`'s own layered include); cosmic's wallpaper via an `/etc/xdg/cosmic/...` override (admin-tier in `cosmic-config`'s layering, below `~/.config/cosmic`, above the RPM-owned vendor default).
-4. **Login / session switching** — single `tuigreet` config (`--remember --remember-user-session --cmd niri-session`) for all three sessions. F3 opens the picker; switching desktops day-to-day is log out, F3, pick the other one.
+4. **Login / session switching** — `cosmic-greeter` provides a graphical session chooser for all three sessions.
 5. **Developer experience** — bluefin-dx-inspired, not a 1:1 port (skips Incus, JetBrains Toolbox, GPU compute libs, kernel tracing tools — none of that was asked for; add it the same way if it's ever wanted):
    - **Docker Engine** via Docker's official repo (`download.docker.com`) — Fedora's own repos don't ship `docker-ce`, so this is the one deliberate exception to the "Fedora repos only, no third-party repos" rule the rest of this image family follows. Uses dnf5's `config-manager addrepo --from-repofile=` syntax, not dnf4's `--add-repo`.
    - **Homebrew** via `COPY --from=ghcr.io/ublue-os/brew:latest /system_files /` + `brew-setup.service` — Homebrew's installer refuses to run as root (which a Containerfile `RUN` is), so this bakes in ublue-os's own pre-packaged image and extracts it to `/var/home/linuxbrew` on first boot instead, per their documented integration pattern.

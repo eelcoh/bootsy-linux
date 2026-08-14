@@ -141,15 +141,13 @@ deploying workloads/VMs, and bringing up the bundled desktop on demand.
 
 ### bootsy-desktop
 
-Boots straight to the login screen (`greetd` + `tuigreet`). Log in and
-you're in Niri+DankMaterialShell by default. `alacritty` is the default
+Boots straight to the graphical COSMIC login screen. Log in and choose
+Niri+DankMaterialShell, Sway, or COSMIC. `alacritty` is the default
 terminal for Niri/Sway (matches Niri's own `Mod+T` keybind); COSMIC uses its
 own `cosmic-term`.
 
-**Switching desktops**: at the login prompt, press `F3` to open the session
-picker and choose Niri, Sway, or COSMIC — `tuigreet` remembers each user's
-last choice (`--remember-user-session`) across reboots, so switching is just
-logging out, hitting F3, and picking the other one.
+**Switching desktops**: log out, use the session chooser on the graphical
+login screen, and select Niri, Sway, or COSMIC before logging back in.
 
 **Developer experience** (bluefin-dx-inspired): `brew` (Homebrew, extracted
 to `/var/home/linuxbrew` on first boot by `brew-setup.service` — give it a
@@ -169,7 +167,7 @@ SSH stays available on both flavors regardless of the boot target.
 ## Troubleshooting
 
 ```sh
-journalctl -u greetd.service       # login screen not coming up
+journalctl -u cosmic-greeter.service  # login screen not coming up
 journalctl -u brew-setup.service   # bootsy-desktop: Homebrew not showing up after first boot
 ```
 

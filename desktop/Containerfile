@@ -2,9 +2,9 @@ ARG BASE_IMAGE=ghcr.io/eelcoh/bootsy-linux/base:latest
 FROM ${BASE_IMAGE}
 
 # bootsy-desktop: Niri+DankMaterialShell, Sway, and COSMIC installed
-# side by side, switchable at login (see the tuigreet section below) rather
+# side by side, switchable at the graphical login screen rather
 # than three separate images the way kubevirt-host-bootc-image did it.
-# Niri+DMS is the default session. Plus a bluefin-dx-inspired developer
+# Plus a bluefin-dx-inspired developer
 # experience layer (Homebrew, Docker, VS Code, mise, Ptyxis, Flatpak).
 
 # ============================== Desktops ==============================
@@ -13,7 +13,7 @@ FROM ${BASE_IMAGE}
 # transaction. Package names/versions confirmed directly against Fedora 44
 # repos (`dnf5 repoquery`) while building this image, no COPRs.
 #
-# - niri + DankMaterialShell: the default session (scrollable-tiling
+# - niri + DankMaterialShell: scrollable-tiling
 #   compositor + DMS's Quickshell-based bar/launcher/lock/notifications).
 # - sway + sway-config-fedora + waybar + swaylock/swayidle: i3-compatible
 #   wlroots compositor with Fedora's own stock config.
@@ -23,9 +23,7 @@ FROM ${BASE_IMAGE}
 #   (which is) hard-Requires it as of Fedora 44's packaging (confirmed:
 #   `dnf5 repoquery --whatrequires cosmic-greeter` lists every cosmic-session
 #   build), so it ends up installed regardless of not being asked for. It's
-#   explicitly disabled in the login section below — it's a self-contained
-#   display manager that would otherwise fight tuigreet for ownership of
-#   display-manager.service.
+#   used as the graphical display manager in the login section below.
 # - alacritty: terminal for niri (matches its default Mod+T keybind) and
 #   sway; COSMIC uses its own cosmic-term from the group.
 # - xdg-desktop-portal(-gtk/-gnome/-wlr/-cosmic), gnome-keyring, polkit-kde,
@@ -46,8 +44,6 @@ RUN dnf -y install \
     xdg-desktop-portal-wlr \
     gnome-keyring \
     polkit-kde \
-    greetd \
-    tuigreet \
     pipewire \
     pipewire-pulseaudio \
     pipewire-alsa \
@@ -62,8 +58,8 @@ RUN dnf -y install \
 # ============================== Session entries ==============================
 #
 # Explicit wayland-sessions entries for all three, rather than trusting each
-# RPM's own file naming/labelling to stay stable across Fedora releases —
-# tuigreet's F3 picker (below) lists exactly these three, by these names.
+# RPM's own file naming/labelling to stay stable across Fedora releases, so
+# the graphical greeter always offers these stable names and commands.
 RUN mkdir -p /usr/share/wayland-sessions
 
 COPY <<-'EOF' /usr/share/wayland-sessions/niri.desktop
@@ -104,13 +100,21 @@ RUN mkdir -p /etc/niri \
     && printf '\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/fedora-workstation/mermaid_dark.webp" "-m" "fill"\n' \
     >> /etc/niri/config.kdl
 
-RUN systemctl --global enable dms.service
+# Match DMS's supported Fedora setup: make it part of the niri-session user
+# service transaction so DankBar starts every time Niri does.
+RUN systemctl --global add-wants niri.service dms.service
 
 # sway: sway-config-fedora's /etc/sway/config includes every file under
 # /etc/sway/config.d/*.conf, so the wallpaper is wired up the same way as
 # its own bindings/rules snippets.
 COPY <<-'EOF' /etc/sway/config.d/40-wallpaper.conf
 output * bg /usr/share/backgrounds/fedora-workstation/mermaid_dark.webp fill
+EOF
+
+# Do not depend on a package-version-specific Fedora autostart snippet: make
+# the panel an explicit part of every Sway session.
+COPY <<-'EOF' /etc/sway/config.d/50-waybar.conf
+exec_always --no-startup-id waybar
 EOF
 
 # cosmic: cosmic-config (the RON-based settings store every COSMIC
@@ -133,32 +137,12 @@ EOF
 
 # ============================== Login / session switching ==============================
 #
-# One greeter (tuigreet) drives login for all three sessions. It reads
-# /usr/share/wayland-sessions/*.desktop (the three entries above) on its
-# own; F3 opens the session picker, and --remember-user-session persists
-# each user's last pick across reboots, so "switch whenever I feel like it"
-# is: log out (or reboot), hit F3, pick the other one. --cmd sets the
-# default for first login (niri, per bootsy-desktop's default). Fedora's
-# `greetd` RPM ships its own sysusers.d entry creating a `greetd` system
-# user, so no manual user/tmpfiles wiring is needed the way DankMaterial
-# Shell's own bundled greeter would require.
-COPY <<-'EOF' /etc/greetd/config.toml
-[terminal]
-vt = 1
-
-[default_session]
-command = "tuigreet --remember --remember-user-session --cmd niri-session"
-user = "greetd"
-EOF
-
-# cosmic-session's hard dependency on cosmic-greeter (see the desktops
-# section above) means its %post scriptlet already claimed
-# display-manager.service for cosmic-greeter.service by the time this runs.
-# `disable` removes that alias (cosmic-greeter.service declares it via its
-# own [Install] Alias=, so plain `disable` — not just a raw symlink rm — is
-# enough); `enable --force` then overwrites it with greetd's.
-RUN systemctl disable cosmic-greeter.service \
-    && systemctl enable --force greetd.service
+# cosmic-greeter is a graphical display manager and reads the standard
+# wayland-sessions entries above, giving the login screen a proper chooser
+# for Niri, Sway, and COSMIC.  cosmic-session already requires the greeter,
+# so no additional login stack or hand-maintained greetd configuration is
+# necessary.
+RUN systemctl enable --force cosmic-greeter.service
 
 # ============================== Developer experience (bluefin-dx-inspired) ==============================
 #
@@ -228,6 +212,6 @@ RUN dnf -y install flatpak \
 # ============================== Boot target ==============================
 #
 # Unlike bootsy-server, bootsy-desktop boots straight to the greeter —
-# without this the host stays on base's console default and greetd never
+# without this the host stays on base's console default and the greeter never
 # runs, leaving a bare tty.
 RUN systemctl set-default graphical.target
