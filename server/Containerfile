@@ -127,9 +127,21 @@ until curl -sf http://localhost:5000/v2/ >/dev/null 2>&1; do
 done
 
 if ! kubectl get namespace ate-system >/dev/null 2>&1; then
-    echo "Deploying Agent Substrate control plane ($(cat /etc/agent-substrate-version))..."
+    SUBSTRATE_VERSION=$(cat /etc/agent-substrate-version)
+    SUBSTRATE_WORK_DIR="/var/lib/agent-substrate/${SUBSTRATE_VERSION}"
+    echo "Deploying Agent Substrate control plane (${SUBSTRATE_VERSION})..."
+
+    # /opt is part of bootc's immutable image. Substrate's install script
+    # runs go generate and writes CRDs/RBAC manifests into its source tree,
+    # so prepare a persistent writable working copy for this image version.
+    if [ ! -e "${SUBSTRATE_WORK_DIR}/.source-ready" ]; then
+        mkdir -p "${SUBSTRATE_WORK_DIR}"
+        cp -a /opt/agent-substrate/. "${SUBSTRATE_WORK_DIR}/"
+        touch "${SUBSTRATE_WORK_DIR}/.source-ready"
+    fi
+
     export KO_DOCKER_REPO=localhost:5000/ate
-    cd /opt/agent-substrate
+    cd "${SUBSTRATE_WORK_DIR}"
     ./hack/install-ate.sh --deploy-ate-system
 fi
 
