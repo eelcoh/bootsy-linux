@@ -97,24 +97,14 @@ EOF
 RUN mkdir -p /etc/niri \
     && sed -e '/This line starts waybar/d' -e '/^spawn-at-startup "waybar"$/d' \
     /usr/share/doc/niri/default-config.kdl > /etc/niri/config.kdl \
-    && printf '\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/fedora-workstation/mermaid_dark.webp" "-m" "fill"\n' \
+    && printf '\nspawn-at-startup "dms" "run"\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/fedora-workstation/mermaid_dark.webp" "-m" "fill"\n' \
     >> /etc/niri/config.kdl
-
-# Match DMS's supported Fedora setup: make it part of the niri-session user
-# service transaction so DankBar starts every time Niri does.
-RUN systemctl --global add-wants niri.service dms.service
 
 # sway: sway-config-fedora's /etc/sway/config includes every file under
 # /etc/sway/config.d/*.conf, so the wallpaper is wired up the same way as
 # its own bindings/rules snippets.
 COPY <<-'EOF' /etc/sway/config.d/40-wallpaper.conf
 output * bg /usr/share/backgrounds/fedora-workstation/mermaid_dark.webp fill
-EOF
-
-# Do not depend on a package-version-specific Fedora autostart snippet: make
-# the panel an explicit part of every Sway session.
-COPY <<-'EOF' /etc/sway/config.d/50-waybar.conf
-exec_always --no-startup-id waybar
 EOF
 
 # cosmic: cosmic-config (the RON-based settings store every COSMIC

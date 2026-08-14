@@ -245,7 +245,7 @@ RUN dnf -y install \
 RUN mkdir -p /etc/niri \
     && sed -e '/This line starts waybar/d' -e '/^spawn-at-startup "waybar"$/d' \
     /usr/share/doc/niri/default-config.kdl > /etc/niri/config.kdl \
-    && printf '\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/fedora-workstation/mermaid_dark.webp" "-m" "fill"\n' \
+    && printf '\nspawn-at-startup "dms" "run"\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/fedora-workstation/mermaid_dark.webp" "-m" "fill"\n' \
     >> /etc/niri/config.kdl
 
 # Explicit wayland-sessions entry rather than trusting the niri RPM's own
@@ -266,12 +266,7 @@ vt = 1
 command = "tuigreet --remember --remember-session --cmd niri-session"
 EOF
 
-# DMS upstream's Fedora integration attaches the shell directly to Niri's
-# user service.  Merely enabling dms.service globally does not guarantee it
-# is pulled into niri-session's user-systemd transaction, which can leave a
-# running compositor without DankBar.
-RUN systemctl --global add-wants niri.service dms.service \
-    && systemctl enable greetd.service
+RUN systemctl enable greetd.service
 
 # Server stays headless by default (base already set multi-user.target);
 # bring the desktop up on demand:
