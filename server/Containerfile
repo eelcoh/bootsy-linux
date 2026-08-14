@@ -86,14 +86,16 @@ RUN systemctl enable kubevirt-bootstrap.service
 # ============================== Agent Substrate ==============================
 
 # Agent Substrate ships no pre-built binaries (source tags only), so this
-# needs a Go toolchain to build its control plane from source. docker-
-# distribution is a local, anonymous OCI registry: Substrate's own install
-# script builds images with `ko` and pushes them somewhere, and there's no
-# external registry to point at on a single-box appliance, so it runs one
-# itself.
+# needs a Go toolchain to build its control plane from source, while
+# perl-Digest-SHA supplies the `shasum` command used to verify its downloaded
+# protoc toolchain. docker-distribution is a local, anonymous OCI registry:
+# Substrate's own install script builds images with `ko` and pushes them
+# somewhere, and there's no external registry to point at on a single-box
+# appliance, so it runs one itself.
 RUN dnf -y install \
     golang \
     docker-distribution \
+    perl-Digest-SHA \
     && dnf clean all
 
 RUN git clone --branch "${SUBSTRATE_VERSION}" --depth 1 \
