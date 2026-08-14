@@ -18,6 +18,13 @@ ARG SUBSTRATE_VERSION=v0.0.0
 # time rather than a per-boot `setenforce 0`.
 RUN sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
 
+# KubeVirt and K3s create many bridges, veth devices, nftables rules, and
+# audit events during bootstrap. Keep informational kernel messages in the
+# journal without letting them overwrite the interactive login prompt.
+COPY <<-'EOF' /etc/sysctl.d/10-bootsy-console-quiet.conf
+kernel.printk = 3 4 1 3
+EOF
+
 # Install K3s straight into the image (no network needed on first boot).
 # INSTALL_K3S_SKIP_ENABLE=true: the installer's own enable step runs
 # `systemctl daemon-reload`, which needs a live systemd bus that doesn't
@@ -227,10 +234,8 @@ RUN systemctl enable postgresql-bootstrap.service postgresql.service
 # a hand-rolled greeter system user + tmpfiles wiring), and bootsy-desktop
 # already needs a generic, non-DMS-specific greeter for its 3-way session
 # picker. Reusing the same mechanism here avoids maintaining two different
-# login stacks. DankMaterialShell itself is unaffected: `dms.service` (a
-# systemd --user unit wanted by graphical-session.target) still starts the
-# moment `niri-session` brings up a session, regardless of which greeter
-# invoked it.
+# login stacks. DankMaterialShell itself is started from the Niri config
+# once the compositor has established its session environment.
 RUN dnf -y install \
     niri \
     DankMaterialShell \
@@ -281,6 +286,20 @@ command = "tuigreet --remember --remember-session --cmd niri-session"
 EOF
 
 RUN systemctl enable greetd.service
+
+# On a TTY, the complete desktop entry point is niri-session rather than the
+# bare compositor binary. Preserve arguments such as `niri msg` and
+# `niri --version`, but make the common no-argument command do the useful
+# thing in the default interactive shell.
+COPY <<-'EOF' /etc/profile.d/bootsy-niri-session.sh
+niri() {
+    if [ "$#" -eq 0 ]; then
+        command niri-session
+    else
+        command /usr/bin/niri "$@"
+    fi
+}
+EOF
 
 # Server stays headless by default (base already set multi-user.target);
 # bring the desktop up on demand:

@@ -149,6 +149,12 @@ picker, no theming, no dev-experience layer. If you want the full desktop
 experience with Sway/COSMIC switching and the bluefin-dx-inspired dev tools,
 that's what `bootsy-desktop` is for.
 
+When launching directly from a TTY, use `niri-session`; plain `/usr/bin/niri`
+starts only the compositor and omits the full graphical-session integration
+needed by desktop services. For convenience, the server's default zsh setup
+maps a no-argument `niri` command to `niri-session` while preserving commands
+such as `niri msg` and `niri --version`.
+
 ## Troubleshooting
 
 ```sh
