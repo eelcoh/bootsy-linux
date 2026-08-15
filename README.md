@@ -170,7 +170,8 @@ deploying workloads/VMs, and bringing up the bundled desktop on demand.
 
 ### bootsy-desktop
 
-Boots straight to the `tuigreet` login screen. Log in and choose
+Boots straight to a graphical GTK login screen running natively under a
+minimal Sway/Wayland compositor. Log in and choose
 Niri+DankMaterialShell, Sway, or COSMIC. `alacritty` is the default
 terminal for Niri/Sway (matches Niri's own `Mod+T` keybind); COSMIC uses its
 own `cosmic-term`.

@@ -8,7 +8,7 @@ Not a distro — my personal configuration of Fedora's own [bootc](https://conta
 
 - **base** — plain Fedora bootc + KVM/libvirt + zsh/chezmoi/atuin/dev tooling. No desktop, no Kubernetes. Not published/used standalone, just the shared parent.
 - **server** — base + K3s + KubeVirt + Agent Substrate, all combined into one image (not three layered flavors), plus a basic Niri+DankMaterialShell desktop for when a monitor's plugged in. Boots headless by default.
-- **desktop** — base + Niri/DankMaterialShell, Sway, and COSMIC, all three installed side by side and switchable from tuigreet, plus a bluefin-dx-inspired developer experience layer (Homebrew, Docker, VS Code, mise, Ptyxis, Flatpak). Boots to the login screen.
+- **desktop** — base + Niri/DankMaterialShell, Sway, and COSMIC, all three installed side by side and switchable from graphical Wayland-native gtkgreet, plus a bluefin-dx-inspired developer experience layer (Homebrew, Docker, VS Code, mise, Ptyxis, Flatpak). Boots to the login screen.
 
 There is no application code — the entire project is the image definitions plus the CI pipeline that builds and publishes them.
 
@@ -27,8 +27,9 @@ Containerfile:
    order, rather than as separate `k3s`/`kubevirt`/`agent-runtime` images.
    There's no scenario here where you want K3s without KubeVirt or Substrate,
    so the extra image-graph complexity wasn't worth it.
-2. **Both flavors use `greetd` + `tuigreet`.** Server keeps a fixed Niri
-   session, while desktop enables tuigreet's chooser for Niri, Sway, and
+2. **The flavors use different greetd frontends.** Server keeps `tuigreet` for
+   its optional fixed Niri session. Desktop runs graphical `gtkgreet` in a
+   minimal Sway compositor with XWayland disabled, offering Niri, Sway, and
    COSMIC. COSMIC Greeter is installed as a session dependency but disabled
    because its compositor can fail to acquire DRM on otherwise-supported
    hardware. `/usr/share/wayland-sessions/*.desktop` entries are written
@@ -95,7 +96,7 @@ SELinux is left at Fedora's default `enforcing` in `base`. `server` flips it to 
 1. **Desktops** — one `dnf install` for all three DEs' packages plus shared portal/audio/font plumbing. `cosmic-desktop` is a comps group (`dnf group install`) and pulls in `cosmic-greeter`. Package names/versions were confirmed directly against live Fedora 44 repos while building this image (`dnf5 repoquery`), not assumed — same verification discipline the reference repo used. No COPRs for anything in this section.
 2. **Session entries** — explicit `/usr/share/wayland-sessions/{niri,sway,cosmic}.desktop`, so the graphical greeter always shows these three stable names and commands.
 3. **Per-DE wiring** — the original collection under `wallpapers/` is installed to `/usr/share/backgrounds/bootsy-linux` for every picker, with `bootsy-zircon-flow.webp` as the common default. Niri's chezmoi source under `/usr/share/bootsy/dotfiles` is derived from niri's own shipped default (Waybar autostart stripped, Fuzzel binding replaced by DMS Spotlight, DMS and wallpaper added) and shared systemd user units install it to `~/.config/niri/config.kdl` before the first graphical session and track image updates; `~/.config/niri/local.kdl` is reserved for durable user overrides. Sway uses administrator snippets for the wallpaper, neutral one-pixel border decorations, DMS Spotlight binding, and DMS in place of Fedora's Waybar; cosmic's wallpaper uses an `/etc/xdg/cosmic/...` override.
-4. **Login / session switching** — `greetd` + `tuigreet` provides a session chooser for all three sessions without starting a second compositor at the login screen.
+4. **Login / session switching** — `gtkgreet` provides a styled graphical session chooser for all three sessions using a minimal Sway compositor, with no X11 greeter, SDDM, or GDM stack.
 5. **Developer experience** — bluefin-dx-inspired, not a 1:1 port (skips Incus, JetBrains Toolbox, GPU compute libs, kernel tracing tools — none of that was asked for; add it the same way if it's ever wanted):
    - **Docker Engine** via Docker's official repo (`download.docker.com`) — Fedora's own repos don't ship `docker-ce`, so this is the one deliberate exception to the "Fedora repos only, no third-party repos" rule the rest of this image family follows. Uses dnf5's `config-manager addrepo --from-repofile=` syntax, not dnf4's `--add-repo`.
    - **Homebrew** via `COPY --from=ghcr.io/ublue-os/brew:latest /system_files /` + `brew-setup.service` — Homebrew's installer refuses to run as root (which a Containerfile `RUN` is), so this bakes in ublue-os's own pre-packaged image and extracts it to `/var/home/linuxbrew` on first boot instead, per their documented integration pattern.
