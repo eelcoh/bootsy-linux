@@ -155,6 +155,11 @@ needed by desktop services. For convenience, the server's default zsh setup
 maps a no-argument `niri` command to `niri-session` while preserving commands
 such as `niri msg` and `niri --version`.
 
+On the first graphical login, a systemd user service installs Fedora's default
+Niri keybindings and settings at `~/.config/niri/config.kdl`. That file is
+managed by Bootsy and refreshed after image updates; put personal changes in
+`~/.config/niri/local.kdl`, which is included without being overwritten.
+
 ## Troubleshooting
 
 ```sh

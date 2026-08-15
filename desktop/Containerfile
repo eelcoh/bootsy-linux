@@ -55,6 +55,11 @@ RUN dnf -y install \
     && dnf -y group install cosmic-desktop \
     && dnf clean all
 
+# Original Bootsy wallpaper collection, shared by Niri/DMS, Sway/DMS, and
+# COSMIC. Keeping every image in the standard system backgrounds hierarchy
+# makes the same collection available to each desktop's wallpaper picker.
+COPY wallpapers/ /usr/share/backgrounds/bootsy-linux/
+
 # ============================== Session entries ==============================
 #
 # Explicit wayland-sessions entries for all three, rather than trusting each
@@ -88,23 +93,31 @@ EOF
 
 # ============================== Per-DE wiring ==============================
 
-# niri: derive /etc/niri/config.kdl from niri's own shipped default (stays
-# in sync with whatever Fedora's build actually ships) rather than
-# hand-copying it; strip the waybar autostart line (DMS's DankBar replaces
-# it — this matters even with waybar installed above for sway's sake) and
-# add a wallpaper, since DMS's own wallpaper module starts empty until a
-# user picks one by hand.
-RUN mkdir -p /etc/niri \
+# niri: build a chezmoi source from niri's own shipped default (stays in sync
+# with Fedora's package), then apply it for each user before their first
+# graphical session. The user-level config is important: it gives every
+# account a visible, editable baseline while the optional local.kdl include
+# provides a stable place for overrides across image updates.
+RUN mkdir -p /usr/share/bootsy/dotfiles/dot_config/niri \
+    && printf '// Managed by Bootsy; image updates replace this file.\n// Put personal overrides in ~/.config/niri/local.kdl.\n\n' \
+    > /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl \
     && sed -e '/This line starts waybar/d' -e '/^spawn-at-startup "waybar"$/d' \
-    /usr/share/doc/niri/default-config.kdl > /etc/niri/config.kdl \
-    && printf '\nspawn-at-startup "dms" "run"\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/fedora-workstation/mermaid_dark.webp" "-m" "fill"\n' \
-    >> /etc/niri/config.kdl
+    /usr/share/doc/niri/default-config.kdl >> /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl \
+    && printf '\nspawn-at-startup "dms" "run" "--session"\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp" "-m" "fill"\ninclude optional=true "local.kdl"\n' \
+    >> /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl
+COPY niri/systemd/ /usr/lib/systemd/user/
+RUN systemctl --global enable bootsy-dotfiles-init.service bootsy-dotfiles-update.timer
 
-# sway: sway-config-fedora's /etc/sway/config includes every file under
-# /etc/sway/config.d/*.conf, so the wallpaper is wired up the same way as
-# its own bindings/rules snippets.
+# sway: sway-config-fedora layers /etc/sway/config.d over its vendor snippets.
+# Keep the wallpaper override and shadow its 90-bar.conf with DMS, which is
+# launched by Sway so it inherits SWAYSOCK and can control workspaces/session
+# actions. Waybar stays installed as an available fallback, but is not started.
 COPY <<-'EOF' /etc/sway/config.d/40-wallpaper.conf
-output * bg /usr/share/backgrounds/fedora-workstation/mermaid_dark.webp fill
+output * bg /usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp fill
+EOF
+
+COPY <<-'EOF' /etc/sway/config.d/90-bar.conf
+exec dms run --session
 EOF
 
 # cosmic: cosmic-config (the RON-based settings store every COSMIC
@@ -116,7 +129,7 @@ RUN mkdir -p /etc/xdg/cosmic/com.system76.CosmicBackground/v1
 COPY <<-'EOF' /etc/xdg/cosmic/com.system76.CosmicBackground/v1/all
 (
     output: "all",
-    source: Path("/usr/share/backgrounds/fedora-workstation/mermaid_dark.webp"),
+    source: Path("/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp"),
     filter_by_theme: true,
     rotation_frequency: 3600,
     filter_method: Lanczos,

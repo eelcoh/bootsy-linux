@@ -257,15 +257,22 @@ RUN dnf -y install \
     fedora-workstation-backgrounds \
     && dnf clean all
 
-# Derive /etc/niri/config.kdl from niri's own shipped default rather than
-# hand-copying it, so it stays in sync with whatever default Fedora's niri
-# build actually ships; only change is dropping the waybar autostart line
-# (DMS's DankBar replaces it) and adding a wallpaper.
-RUN mkdir -p /etc/niri \
+# Original Bootsy wallpapers in the standard shared backgrounds hierarchy,
+# available from DMS's wallpaper picker as well as directly by path.
+COPY wallpapers/ /usr/share/backgrounds/bootsy-linux/
+
+# Build a chezmoi source from niri's own shipped default, then install it for
+# each user before their first graphical session. local.kdl remains outside
+# chezmoi management and is the stable place for personal overrides.
+RUN mkdir -p /usr/share/bootsy/dotfiles/dot_config/niri \
+    && printf '// Managed by Bootsy; image updates replace this file.\n// Put personal overrides in ~/.config/niri/local.kdl.\n\n' \
+    > /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl \
     && sed -e '/This line starts waybar/d' -e '/^spawn-at-startup "waybar"$/d' \
-    /usr/share/doc/niri/default-config.kdl > /etc/niri/config.kdl \
-    && printf '\nspawn-at-startup "dms" "run"\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/fedora-workstation/mermaid_dark.webp" "-m" "fill"\n' \
-    >> /etc/niri/config.kdl
+    /usr/share/doc/niri/default-config.kdl >> /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl \
+    && printf '\nspawn-at-startup "dms" "run" "--session"\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp" "-m" "fill"\ninclude optional=true "local.kdl"\n' \
+    >> /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl
+COPY niri/systemd/ /usr/lib/systemd/user/
+RUN systemctl --global enable bootsy-dotfiles-init.service bootsy-dotfiles-update.timer
 
 # Explicit wayland-sessions entry rather than trusting the niri RPM's own
 # file naming/labelling to stay stable across Fedora releases.

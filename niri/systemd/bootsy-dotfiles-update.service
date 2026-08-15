@@ -1,0 +1,8 @@
+[Unit]
+Description=Update Bootsy-managed desktop defaults
+ConditionPathExists=%h/.config/bootsy/chezmoi/initialized
+
+[Service]
+Type=oneshot
+# config.kdl is image-managed; durable user changes belong in local.kdl.
+ExecStart=/usr/bin/chezmoi apply --force --no-tty --keep-going --source /usr/share/bootsy/dotfiles --config %h/.config/bootsy/chezmoi/chezmoi.toml

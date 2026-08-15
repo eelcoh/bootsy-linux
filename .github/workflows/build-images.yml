@@ -8,6 +8,8 @@ on:
       - 'base/**'
       - 'server/**'
       - 'desktop/**'
+      - 'niri/**'
+      - 'wallpapers/**'
       - '.github/workflows/**'
   schedule:
     # Rebuild the whole image family every Sunday at 00:00 for the newest

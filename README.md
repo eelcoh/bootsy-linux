@@ -31,6 +31,19 @@ about *using* the appliances once installed.
 | `ghcr.io/eelcoh/bootsy-linux/server` | base + K3s + KubeVirt + Agent Substrate + PostgreSQL, all in one image, plus a basic Niri+DankMaterialShell desktop for when a monitor's plugged in. Boots headless by default. See [`server/README.md`](server/README.md). |
 | `ghcr.io/eelcoh/bootsy-linux/desktop` | base + Niri/DankMaterialShell (default), Sway, and COSMIC, switchable at login, plus a bluefin-dx-inspired developer experience layer (Homebrew, Docker, VS Code, mise, Flatpak). No Kubernetes. Boots to the login screen. |
 
+Both Niri installations seed `~/.config/niri/config.kdl` from Fedora's
+package default on the first graphical login, so the standard keybindings and
+settings work immediately. Bootsy manages that file with chezmoi and refreshes
+it after image updates. Put personal changes in `~/.config/niri/local.kdl`,
+which the managed config includes but does not overwrite. On the desktop
+image, DankMaterialShell is also the default shell and bar for Sway; Waybar
+remains installed as an optional fallback.
+
+The original Bootsy wallpaper collection is installed at
+`/usr/share/backgrounds/bootsy-linux`. DMS exposes it to both Niri and Sway,
+and COSMIC can select the same files from its wallpaper settings. The dark
+`bootsy-zircon-flow.webp` artwork is the default in all three sessions.
+
 ## Prerequisites
 
 - A CPU with hardware virtualization (Intel VT-x / AMD-V) and `/dev/kvm`

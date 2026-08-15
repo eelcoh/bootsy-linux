@@ -49,6 +49,8 @@ base/Containerfile                   # shared by both flavors below
 server/Containerfile                 # FROM base; k3s + kubevirt + agent substrate + basic niri/dms
 server/README.md                     # K3s/KubeVirt/Substrate usage, specific to this flavor
 desktop/Containerfile                # FROM base; niri/dms + sway + cosmic + dev-experience layer
+niri/systemd/                        # per-user chezmoi initialization/update units shared by both flavors
+wallpapers/                          # original Bootsy wallpapers shared by every desktop environment
 scripts/make-installer-usb.sh        # builds+writes an installer ISO, defaults to `desktop`
 .github/workflows/build-image.yml    # reusable workflow: builds+pushes one flavor
 .github/workflows/build-images.yml   # orchestrator: base -> {server, desktop}
@@ -92,7 +94,7 @@ SELinux is left at Fedora's default `enforcing` in `base`. `server` flips it to 
 
 1. **Desktops** — one `dnf install` for all three DEs' packages plus shared portal/audio/font plumbing. `cosmic-desktop` is a comps group (`dnf group install`) and pulls in `cosmic-greeter`. Package names/versions were confirmed directly against live Fedora 44 repos while building this image (`dnf5 repoquery`), not assumed — same verification discipline the reference repo used. No COPRs for anything in this section.
 2. **Session entries** — explicit `/usr/share/wayland-sessions/{niri,sway,cosmic}.desktop`, so the graphical greeter always shows these three stable names and commands.
-3. **Per-DE wiring** — niri's `/etc/niri/config.kdl` derived from niri's own shipped default (waybar autostart line stripped, wallpaper added); sway's wallpaper via `/etc/sway/config.d/40-wallpaper.conf` (picked up by `sway-config-fedora`'s own layered include); cosmic's wallpaper via an `/etc/xdg/cosmic/...` override (admin-tier in `cosmic-config`'s layering, below `~/.config/cosmic`, above the RPM-owned vendor default).
+3. **Per-DE wiring** — the original collection under `wallpapers/` is installed to `/usr/share/backgrounds/bootsy-linux` for every picker, with `bootsy-zircon-flow.webp` as the common default. Niri's chezmoi source under `/usr/share/bootsy/dotfiles` is derived from niri's own shipped default (waybar autostart stripped, DMS and wallpaper added) and shared systemd user units install it to `~/.config/niri/config.kdl` before the first graphical session and track image updates; `~/.config/niri/local.kdl` is reserved for durable user overrides. Sway uses `/etc/sway/config.d/40-wallpaper.conf` for its wallpaper and an administrator-layer `90-bar.conf` to replace Fedora's Waybar startup with DMS; cosmic's wallpaper uses an `/etc/xdg/cosmic/...` override.
 4. **Login / session switching** — `cosmic-greeter` provides a graphical session chooser for all three sessions.
 5. **Developer experience** — bluefin-dx-inspired, not a 1:1 port (skips Incus, JetBrains Toolbox, GPU compute libs, kernel tracing tools — none of that was asked for; add it the same way if it's ever wanted):
    - **Docker Engine** via Docker's official repo (`download.docker.com`) — Fedora's own repos don't ship `docker-ce`, so this is the one deliberate exception to the "Fedora repos only, no third-party repos" rule the rest of this image family follows. Uses dnf5's `config-manager addrepo --from-repofile=` syntax, not dnf4's `--add-repo`.

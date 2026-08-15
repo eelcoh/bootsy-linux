@@ -1,0 +1,14 @@
+[Unit]
+Description=Install Bootsy desktop defaults
+ConditionPathExists=!%h/.config/bootsy/chezmoi/initialized
+Before=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/mkdir -p %h/.config/bootsy/chezmoi
+ExecStart=/usr/bin/touch %h/.config/bootsy/chezmoi/chezmoi.toml
+ExecStart=/usr/bin/chezmoi apply --force --no-tty --source /usr/share/bootsy/dotfiles --config %h/.config/bootsy/chezmoi/chezmoi.toml
+ExecStart=/usr/bin/touch %h/.config/bootsy/chezmoi/initialized
+
+[Install]
+WantedBy=graphical-session-pre.target
