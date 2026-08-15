@@ -13,6 +13,8 @@ grep -q 'bootsy-backup.timer' server/Containerfile
 grep -q 'app.zen_browser.zen' desktop/Containerfile
 grep -q 'com.github.tchx84.Flatseal' desktop/Containerfile
 grep -q 'exec dms run --session' desktop/Containerfile
+grep -q 'systemctl enable --force greetd.service' desktop/Containerfile
+grep -q 'systemctl disable cosmic-greeter.service' desktop/Containerfile
 grep -q 'cosign sign --yes' .github/workflows/build-image.yml
 
 echo 'Bootsy static smoke checks passed.'

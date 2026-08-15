@@ -28,8 +28,8 @@ RUN printf 'FLAVOR=desktop\nVERSION=%s\nVCS_REF=%s\n' "$BOOTSY_VERSION" "$VCS_RE
 #   the group's own mandatory/default package list, but cosmic-session
 #   (which is) hard-Requires it as of Fedora 44's packaging (confirmed:
 #   `dnf5 repoquery --whatrequires cosmic-greeter` lists every cosmic-session
-#   build), so it ends up installed regardless of not being asked for. It's
-#   used as the graphical display manager in the login section below.
+#   build), so it ends up installed regardless of not being asked for. Bootsy
+#   disables its display-manager unit in favor of the more portable tuigreet.
 # - alacritty: terminal for niri (matches its default Mod+T keybind) and
 #   sway; COSMIC uses its own cosmic-term from the group.
 # - Zen Browser: installed system-wide from its officially recommended Flathub
@@ -46,6 +46,8 @@ RUN dnf -y install \
     waybar \
     swaylock \
     swayidle \
+    greetd \
+    tuigreet \
     xdg-desktop-portal-cosmic \
     alacritty \
     bluez \
@@ -195,12 +197,22 @@ EOF
 
 # ============================== Login / session switching ==============================
 #
-# cosmic-greeter is a graphical display manager and reads the standard
-# wayland-sessions entries above, giving the login screen a proper chooser
-# for Niri, Sway, and COSMIC.  cosmic-session already requires the greeter,
-# so no additional login stack or hand-maintained greetd configuration is
-# necessary.
-RUN systemctl enable --force cosmic-greeter.service
+# COSMIC Greeter runs a second COSMIC compositor for the login screen. On some
+# otherwise-supported Intel systems it fails to acquire DRM master and exits
+# with "Backend initialized without output". Use greetd+tuigreet instead: it
+# stays on the console until login, reads the same session entries, remembers
+# the chosen desktop, and hands the seat directly to Niri, Sway, or COSMIC.
+COPY <<-'EOF' /etc/greetd/config.toml
+[terminal]
+vt = 1
+
+[default_session]
+command = "tuigreet --remember --remember-session --sessions /usr/share/wayland-sessions"
+user = "greeter"
+EOF
+
+RUN systemctl disable cosmic-greeter.service \
+    && systemctl enable --force greetd.service
 
 # ============================== Developer experience (bluefin-dx-inspired) ==============================
 #

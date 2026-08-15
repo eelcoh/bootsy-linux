@@ -170,7 +170,7 @@ deploying workloads/VMs, and bringing up the bundled desktop on demand.
 
 ### bootsy-desktop
 
-Boots straight to the graphical COSMIC login screen. Log in and choose
+Boots straight to the `tuigreet` login screen. Log in and choose
 Niri+DankMaterialShell, Sway, or COSMIC. `alacritty` is the default
 terminal for Niri/Sway (matches Niri's own `Mod+T` keybind); COSMIC uses its
 own `cosmic-term`.
@@ -214,7 +214,7 @@ before verification can be enforced safely on hosts.
 ## Troubleshooting
 
 ```sh
-journalctl -u cosmic-greeter.service  # login screen not coming up
+journalctl -u greetd.service        # login screen not coming up
 journalctl -u brew-setup.service   # bootsy-desktop: Homebrew not showing up after first boot
 ```
 
