@@ -33,6 +33,7 @@ RUN systemctl disable firewalld.service
 # socket-activated locally but port 9090 is not opened; use an SSH tunnel.
 # Node Exporter is present for operators who choose to enable and expose it.
 RUN dnf -y install \
+    cockpit-ws \
     cockpit-system \
     cockpit-machines \
     cockpit-storaged \

@@ -8,6 +8,7 @@ done
 
 grep -q 'bootc-fetch-apply-updates.timer' base/Containerfile
 grep -q 'node-exporter' server/Containerfile
+grep -q 'cockpit-ws' server/Containerfile
 grep -q 'bootsy-backup.timer' server/Containerfile
 grep -q 'app.zen_browser.zen' desktop/Containerfile
 grep -q 'com.github.tchx84.Flatseal' desktop/Containerfile
