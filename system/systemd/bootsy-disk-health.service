@@ -1,0 +1,6 @@
+[Unit]
+Description=Check Bootsy storage capacity and device health
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/bootsy-disk-health

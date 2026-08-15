@@ -9,6 +9,11 @@ FROM ${BASE_IMAGE}
 # section), the desktop is there on demand.
 
 ARG SUBSTRATE_VERSION=v0.0.0
+ARG BOOTSY_VERSION=development
+ARG VCS_REF=unknown
+
+RUN printf 'FLAVOR=server\nVERSION=%s\nVCS_REF=%s\n' "$BOOTSY_VERSION" "$VCS_REF" \
+        > /usr/lib/bootsy-release
 
 # ============================== K3s ==============================
 
@@ -17,6 +22,40 @@ ARG SUBSTRATE_VERSION=v0.0.0
 # than Fedora's default targeted SELinux policy allows. Persisted at build
 # time rather than a per-boot `setenforce 0`.
 RUN sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
+
+# K3s manages the host packet-filter and CNI rules. Running firewalld on top of
+# those rules is unsupported by K3s and can silently break pod networking, so
+# this flavor explicitly disables the shared-base firewall. SSH remains the
+# only Bootsy-configured network daemon besides the documented server stack.
+RUN systemctl disable firewalld.service
+
+# Administration, storage/UPS diagnostics, backups, and monitoring. Cockpit is
+# socket-activated locally but port 9090 is not opened; use an SSH tunnel.
+# Node Exporter is present for operators who choose to enable and expose it.
+RUN dnf -y install \
+    cockpit-system \
+    cockpit-machines \
+    cockpit-storaged \
+    cockpit-networkmanager \
+    cockpit-podman \
+    restic \
+    node-exporter \
+    pcp \
+    nut \
+    lm_sensors \
+    mdadm \
+    lvm2 \
+    policycoreutils-python-utils \
+    setroubleshoot-server \
+    && dnf clean all
+
+COPY server/bin/bootsy-health /usr/local/sbin/bootsy-health
+COPY server/bin/bootsy-backup /usr/local/sbin/bootsy-backup
+COPY server/systemd/ /usr/lib/systemd/system/
+COPY server/config/backup.conf.example /usr/share/bootsy/backup.conf.example
+COPY server/docs/ /usr/share/doc/bootsy/server/
+RUN chmod 0755 /usr/local/sbin/bootsy-health /usr/local/sbin/bootsy-backup \
+    && systemctl enable cockpit.socket bootsy-backup.timer bootsy-health.timer
 
 # KubeVirt and K3s create many bridges, veth devices, nftables rules, and
 # audit events during bootstrap. Keep informational kernel messages in the

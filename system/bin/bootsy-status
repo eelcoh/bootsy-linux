@@ -1,0 +1,32 @@
+#!/usr/bin/bash
+set -u
+
+echo "Bootsy Linux"
+if [[ -r /usr/lib/bootsy-release ]]; then
+    sed 's/^/  /' /usr/lib/bootsy-release
+fi
+
+echo
+echo "Image status"
+bootc status 2>&1 | sed 's/^/  /' || true
+
+echo
+echo "Failed services"
+failed="$(systemctl --failed --no-legend --plain 2>/dev/null || true)"
+if [[ -n "$failed" ]]; then
+    sed 's/^/  /' <<<"$failed"
+else
+    echo "  none"
+fi
+
+echo
+echo "Storage"
+df -h -x tmpfs -x devtmpfs / /var 2>/dev/null | awk '!seen[$0]++' | sed 's/^/  /'
+
+if command -v needs-restarting >/dev/null 2>&1; then
+    if needs-restarting -r >/dev/null 2>&1; then
+        echo "  reboot: not requested by RPM state"
+    else
+        echo "  reboot: recommended"
+    fi
+fi

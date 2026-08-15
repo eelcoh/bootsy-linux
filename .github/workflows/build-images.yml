@@ -11,6 +11,9 @@ on:
       - 'niri/**'
       - 'wallpapers/**'
       - '.github/workflows/**'
+      - 'system/**'
+      - 'docs/**'
+      - 'tests/**'
   schedule:
     # Rebuild the whole image family every Sunday at 00:00 for the newest
     # security updates.
@@ -24,6 +27,7 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write
 
 # Every job runs on every trigger, in dependency order, so server/desktop
 # are never built against a stale published base. cache-from/cache-to (see
@@ -37,6 +41,9 @@ jobs:
     with:
       flavor: base
       containerfile: base/Containerfile
+      build_args: |
+        BOOTSY_VERSION=sha-${{ github.sha }}
+        VCS_REF=${{ github.sha }}
 
   server:
     needs: base
@@ -44,7 +51,10 @@ jobs:
     with:
       flavor: server
       containerfile: server/Containerfile
-      build_args: BASE_IMAGE=ghcr.io/${{ github.repository }}/base:sha-${{ needs.base.outputs.short_sha }}
+      build_args: |
+        BASE_IMAGE=ghcr.io/${{ github.repository }}/base:sha-${{ needs.base.outputs.short_sha }}
+        BOOTSY_VERSION=sha-${{ github.sha }}
+        VCS_REF=${{ github.sha }}
 
   desktop:
     needs: base
@@ -52,4 +62,7 @@ jobs:
     with:
       flavor: desktop
       containerfile: desktop/Containerfile
-      build_args: BASE_IMAGE=ghcr.io/${{ github.repository }}/base:sha-${{ needs.base.outputs.short_sha }}
+      build_args: |
+        BASE_IMAGE=ghcr.io/${{ github.repository }}/base:sha-${{ needs.base.outputs.short_sha }}
+        BOOTSY_VERSION=sha-${{ github.sha }}
+        VCS_REF=${{ github.sha }}

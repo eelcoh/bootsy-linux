@@ -1,0 +1,6 @@
+#!/usr/bin/bash
+if [[ -n "${CONTAINER_ID:-}" ]]; then
+    printf '[%s]' "$CONTAINER_ID"
+elif [[ -r /run/.containerenv ]]; then
+    printf '[container]'
+fi

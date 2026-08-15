@@ -27,6 +27,20 @@ Every interactive shell also opens with a `fastfetch` banner (the Boxed
 logo plus OS/kernel/CPU/memory info) — wired up in `base`, so it's on
 both flavors.
 
+`bootsy-status` gives a host overview; `sudo bootsy-health` checks K3s,
+PostgreSQL, and the local registry. The latter also runs every 15 minutes and
+records failures in the journal. Cockpit, storage/UPS tools, PCP, and Node
+Exporter are installed. Cockpit is enabled but intentionally reachable only
+through an SSH tunnel, while Node Exporter remains disabled until an operator
+chooses a monitoring network. See
+[`docs/remote-access.md`](docs/remote-access.md).
+
+The daily restic timer is inert until `/etc/bootsy/backup.conf` exists. Start
+from `/usr/share/bootsy/backup.conf.example`, provide a protected password
+file, then test with `sudo systemctl start bootsy-backup.service`. It covers
+host configuration, K3s state, the local registry, and a PostgreSQL logical
+dump; restore testing and an off-host repository remain operator decisions.
+
 ## Deploying containers to K3s
 
 A normal single-node K3s cluster — `traefik` and `servicelb` are disabled
@@ -183,3 +197,7 @@ KubeVirt's device plugin need more than Fedora's default targeted policy
 allows out of the box) — a deliberate, persisted setting, not something to
 "fix" back to enforcing without also sorting out the required policy.
 `bootsy-desktop` and `base` stay at Fedora's default `enforcing`.
+
+The intended route back to enforcing is documented in
+[`docs/selinux.md`](docs/selinux.md); it starts from collected AVCs and requires
+cluster/VM lifecycle tests rather than loading broad generated allow rules.

@@ -1,0 +1,7 @@
+[Unit]
+Description=Check Bootsy server services
+After=k3s.service postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/bootsy-health

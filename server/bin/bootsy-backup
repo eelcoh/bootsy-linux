@@ -1,0 +1,18 @@
+#!/usr/bin/bash
+set -euo pipefail
+
+config=/etc/bootsy/backup.conf
+if [[ ! -r "$config" ]]; then
+    echo "Backup is not configured; copy /usr/share/bootsy/backup.conf.example to $config" >&2
+    exit 2
+fi
+# shellcheck source=/dev/null
+source "$config"
+: "${RESTIC_REPOSITORY:?RESTIC_REPOSITORY must be set}"
+: "${RESTIC_PASSWORD_FILE:?RESTIC_PASSWORD_FILE must be set}"
+
+dump_dir=/var/lib/bootsy-backup
+install -d -m 0700 "$dump_dir"
+runuser -u postgres -- pg_dumpall >"$dump_dir/postgresql.sql"
+restic backup /etc /var/lib/rancher/k3s /var/lib/registry "$dump_dir/postgresql.sql"
+restic forget --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --prune

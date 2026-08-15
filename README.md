@@ -18,6 +18,12 @@ Everything is baked into the image at build time — a box needs no network
 access on first boot to come up working, and SSH (`sshd.service`) is
 enabled out of the box on both flavors.
 
+Both flavors also include automatic weekly bootc update staging (with no
+forced reboot), an SSH-only firewalld baseline where compatible, daily disk
+capacity/NVMe checks, chrony, SMART tools, and a `bootsy-status` command that
+summarizes the immutable image, pending deployment, failed units, and storage.
+The server disables firewalld because K3s owns the CNI/packet-filter rules.
+
 Descended from an earlier, more fragmented study,
 [kubevirt-host-bootc-image](https://github.com/eelcoh/kubevirt-host-bootc-image)
 — see [`CLAUDE.md`](CLAUDE.md) for what changed and why. This document is
@@ -185,7 +191,25 @@ Every interactive shell also opens with a `fastfetch` banner (the Boxed
 logo plus OS/kernel/CPU/memory info) — wired up in `base`, so it's on both
 flavors.
 
+If your dotfiles use Oh My Zsh's Candy theme, source
+`/usr/share/bootsy/zsh/distrobox-prompt.zsh` after Oh My Zsh in `~/.zshrc` to
+prepend the active Distrobox name without replacing Candy. See
+[`docs/distrobox-prompt.md`](docs/distrobox-prompt.md).
+
+The desktop additionally includes firmware/Thunderbolt/fingerprint/hybrid-GPU
+and rotation support, power profiles, CUPS and driverless printing/scanning,
+Nautilus, archive/image/PDF/text utilities, COSMIC Store, and Flatseal.
+Practical shortcuts and hardware notes live in
+[`desktop/docs/keybindings.md`](desktop/docs/keybindings.md) and
+[`desktop/docs/hardware.md`](desktop/docs/hardware.md).
+
 SSH stays available on both flavors regardless of the boot target.
+
+Images are tagged both `latest` and with an immutable source revision, which is
+also visible through `bootsy-status`. See
+[`docs/image-verification.md`](docs/image-verification.md) for the signing and
+verification boundary; the exact workflow identity must be observed and pinned
+before verification can be enforced safely on hosts.
 
 ## Troubleshooting
 

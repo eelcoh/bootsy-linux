@@ -1,5 +1,8 @@
 FROM quay.io/fedora/fedora-bootc:44
 
+ARG BOOTSY_VERSION=development
+ARG VCS_REF=unknown
+
 # bootsy-linux's shared base for both bootsy-server and bootsy-desktop.
 # Directly descended from https://github.com/eelcoh/kubevirt-host-bootc-image
 # (see that repo's CLAUDE.md for the fuller rationale behind fedora-bootc as
@@ -46,9 +49,45 @@ RUN dnf -y install \
     htop \
     btop \
     distrobox \
+    firewalld \
+    chrony \
+    sos \
+    lsof \
+    strace \
+    tcpdump \
+    ethtool \
+    nvme-cli \
+    smartmontools \
     && dnf clean all \
     && usermod --shell /usr/bin/zsh root \
     && useradd -D -s /usr/bin/zsh
+
+# Shared appliance identity, atomic update staging, host diagnostics, and an
+# SSH-only firewall baseline. bootc's native timer downloads/stages updates but
+# never interrupts a running machine with an unsolicited reboot.
+RUN printf 'FLAVOR=base\nVERSION=%s\nVCS_REF=%s\n' "$BOOTSY_VERSION" "$VCS_REF" \
+        > /usr/lib/bootsy-release \
+    && systemctl enable firewalld.service chronyd.service \
+        bootc-fetch-apply-updates.timer
+COPY <<-'EOF' /etc/firewalld/zones/public.xml
+<?xml version="1.0" encoding="utf-8"?>
+<zone>
+  <short>Public</short>
+  <description>Bootsy default: SSH plus DHCPv6 client traffic only</description>
+  <service name="ssh"/>
+  <service name="dhcpv6-client"/>
+</zone>
+EOF
+COPY system/bin/bootsy-status /usr/local/bin/bootsy-status
+COPY system/bin/bootsy-distrobox-prompt /usr/local/bin/bootsy-distrobox-prompt
+COPY system/libexec/bootsy-disk-health /usr/local/libexec/bootsy-disk-health
+COPY system/systemd/ /usr/lib/systemd/system/
+COPY system/zsh/distrobox-prompt.zsh /usr/share/bootsy/zsh/distrobox-prompt.zsh
+COPY docs/ /usr/share/doc/bootsy/
+RUN chmod 0755 /usr/local/bin/bootsy-status \
+        /usr/local/bin/bootsy-distrobox-prompt \
+        /usr/local/libexec/bootsy-disk-health \
+    && systemctl enable bootsy-disk-health.timer
 
 # 5. Fastfetch banner on every interactive shell, using the Boxed logomark.
 # The ASCII art is COPYed in from branding/ rather than inlined as a heredoc

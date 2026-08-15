@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Bootsy server health checks
+
+[Timer]
+OnBootSec=10min
+OnUnitInactiveSec=15min
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Bootsy storage health checks daily
+
+[Timer]
+OnBootSec=15min
+OnUnitInactiveSec=1d
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up Bootsy server state with restic
+ConditionPathExists=/etc/bootsy/backup.conf
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/bootsy-backup
+Nice=10
+IOSchedulingClass=idle

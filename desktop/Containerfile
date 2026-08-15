@@ -1,6 +1,12 @@
 ARG BASE_IMAGE=ghcr.io/eelcoh/bootsy-linux/base:latest
 FROM ${BASE_IMAGE}
 
+ARG BOOTSY_VERSION=development
+ARG VCS_REF=unknown
+
+RUN printf 'FLAVOR=desktop\nVERSION=%s\nVCS_REF=%s\n' "$BOOTSY_VERSION" "$VCS_REF" \
+        > /usr/lib/bootsy-release
+
 # bootsy-desktop: Niri+DankMaterialShell, Sway, and COSMIC installed
 # side by side, switchable at the graphical login screen rather
 # than three separate images the way kubevirt-host-bootc-image did it.
@@ -57,10 +63,31 @@ RUN dnf -y install \
     google-noto-emoji-fonts \
     swaybg \
     fedora-workstation-backgrounds \
+    fwupd \
+    bolt \
+    iio-sensor-proxy \
+    power-profiles-daemon \
+    switcheroo-control \
+    fprintd \
+    cups \
+    cups-pk-helper \
+    system-config-printer \
+    sane-airscan \
+    libsane-airscan \
+    simple-scan \
+    ipp-usb \
+    avahi \
+    file-roller \
+    loupe \
+    evince \
+    gnome-text-editor \
+    nautilus \
     && dnf -y group install cosmic-desktop \
     && dnf clean all \
     && sed -i 's/^#AutoEnable=true$/AutoEnable=true/' /etc/bluetooth/main.conf \
-    && systemctl enable bluetooth.service
+    && systemctl enable bluetooth.service cups.service avahi-daemon.service
+
+COPY desktop/docs/ /usr/share/doc/bootsy/desktop/
 
 # Original Bootsy wallpaper collection, shared by Niri/DMS, Sway/DMS, and
 # COSMIC. Keeping every image in the standard system backgrounds hierarchy
@@ -241,7 +268,9 @@ RUN dnf -y install ptyxis just && dnf clean all
 RUN dnf -y install flatpak \
     && dnf clean all \
     && flatpak remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo \
-    && flatpak install --system --noninteractive flathub app.zen_browser.zen
+    && flatpak install --system --noninteractive flathub \
+        app.zen_browser.zen \
+        com.github.tchx84.Flatseal
 
 COPY <<-'EOF' /etc/xdg/mimeapps.list
 [Default Applications]
@@ -249,6 +278,11 @@ text/html=app.zen_browser.zen.desktop
 application/xhtml+xml=app.zen_browser.zen.desktop
 x-scheme-handler/http=app.zen_browser.zen.desktop
 x-scheme-handler/https=app.zen_browser.zen.desktop
+inode/directory=org.gnome.Nautilus.desktop
+application/pdf=org.gnome.Evince.desktop
+image/jpeg=org.gnome.Loupe.desktop
+image/png=org.gnome.Loupe.desktop
+text/plain=org.gnome.TextEditor.desktop
 EOF
 
 # ============================== Boot target ==============================

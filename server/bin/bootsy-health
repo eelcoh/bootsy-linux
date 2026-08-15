@@ -1,0 +1,33 @@
+#!/usr/bin/bash
+set -u
+
+result=0
+check_unit() {
+    local unit="$1"
+    if systemctl is-active --quiet "$unit"; then
+        printf 'ok    %s\n' "$unit"
+    else
+        printf 'FAIL  %s\n' "$unit"
+        result=1
+    fi
+}
+
+for unit in k3s.service docker-distribution.service postgresql.service; do
+    check_unit "$unit"
+done
+
+if kubectl --request-timeout=5s get --raw=/readyz >/dev/null 2>&1; then
+    echo 'ok    kubernetes API readiness'
+else
+    echo 'FAIL  kubernetes API readiness'
+    result=1
+fi
+
+if curl --max-time 5 --fail --silent http://127.0.0.1:5000/v2/ >/dev/null; then
+    echo 'ok    local OCI registry'
+else
+    echo 'FAIL  local OCI registry'
+    result=1
+fi
+
+exit "$result"

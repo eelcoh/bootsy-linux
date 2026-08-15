@@ -31,6 +31,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     outputs:
       short_sha: ${{ steps.sha.outputs.short }}
 
@@ -62,6 +63,7 @@ jobs:
             type=raw,value=sha-${{ steps.sha.outputs.short }}
 
       - name: Build and Push the OS Image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -75,3 +77,11 @@ jobs:
           # so base/server/desktop don't clobber each other's cache entries.
           cache-from: type=gha,scope=${{ inputs.flavor }}
           cache-to: type=gha,mode=max,scope=${{ inputs.flavor }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.1.2
+
+      - name: Sign image digest with GitHub OIDC
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${REGISTRY}/${IMAGE_NAME}/${{ inputs.flavor }}@${DIGEST}"
