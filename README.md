@@ -37,7 +37,17 @@ settings work immediately. Bootsy manages that file with chezmoi and refreshes
 it after image updates. Put personal changes in `~/.config/niri/local.kdl`,
 which the managed config includes but does not overwrite. On the desktop
 image, DankMaterialShell is also the default shell and bar for Sway; Waybar
-remains installed as an optional fallback.
+remains installed as an optional fallback. `Mod+D` opens DMS Spotlight rather
+than Fuzzel in both sessions, and Sway uses a compact neutral focus border
+without window title bars. Zen Browser is installed system-wide from Flathub
+and configured as the default browser on the desktop image. The server's
+optional graphical session uses Fedora's native Firefox package and does not
+include Flatpak.
+
+Bluetooth is explicitly provided by BlueZ and enabled from first boot on both
+images. Pair devices from DMS Control Center or COSMIC Settings. This applies
+to the installed OS; the separate Anaconda environment on generated installer
+media controls whether Bluetooth input works during installation itself.
 
 The original Bootsy wallpaper collection is installed at
 `/usr/share/backgrounds/bootsy-linux`. DMS exposes it to both Niri and Sway,

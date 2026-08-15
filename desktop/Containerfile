@@ -26,6 +26,10 @@ FROM ${BASE_IMAGE}
 #   used as the graphical display manager in the login section below.
 # - alacritty: terminal for niri (matches its default Mod+T keybind) and
 #   sway; COSMIC uses its own cosmic-term from the group.
+# - Zen Browser: installed system-wide from its officially recommended Flathub
+#   distribution later in this file, after Flatpak is configured.
+# - bluez: explicit Bluetooth stack rather than relying on incidental desktop
+#   group dependencies; DMS and COSMIC provide the pairing UI.
 # - xdg-desktop-portal(-gtk/-gnome/-wlr/-cosmic), gnome-keyring, polkit-kde,
 #   pipewire stack, Noto fonts: shared plumbing every session needs.
 RUN dnf -y install \
@@ -38,6 +42,7 @@ RUN dnf -y install \
     swayidle \
     xdg-desktop-portal-cosmic \
     alacritty \
+    bluez \
     xdg-desktop-portal \
     xdg-desktop-portal-gtk \
     xdg-desktop-portal-gnome \
@@ -53,7 +58,9 @@ RUN dnf -y install \
     swaybg \
     fedora-workstation-backgrounds \
     && dnf -y group install cosmic-desktop \
-    && dnf clean all
+    && dnf clean all \
+    && sed -i 's/^#AutoEnable=true$/AutoEnable=true/' /etc/bluetooth/main.conf \
+    && systemctl enable bluetooth.service
 
 # Original Bootsy wallpaper collection, shared by Niri/DMS, Sway/DMS, and
 # COSMIC. Keeping every image in the standard system backgrounds hierarchy
@@ -101,7 +108,9 @@ EOF
 RUN mkdir -p /usr/share/bootsy/dotfiles/dot_config/niri \
     && printf '// Managed by Bootsy; image updates replace this file.\n// Put personal overrides in ~/.config/niri/local.kdl.\n\n' \
     > /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl \
-    && sed -e '/This line starts waybar/d' -e '/^spawn-at-startup "waybar"$/d' \
+    && sed -e '/This line starts waybar/d' \
+    -e '/^spawn-at-startup "waybar"$/d' \
+    -e 's/Mod+D hotkey-overlay-title="Run an Application: fuzzel" { spawn "fuzzel"; }/Mod+D hotkey-overlay-title="Run an Application: DMS Spotlight" { spawn "dms" "ipc" "call" "spotlight" "toggle"; }/' \
     /usr/share/doc/niri/default-config.kdl >> /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl \
     && printf '\nspawn-at-startup "dms" "run" "--session"\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp" "-m" "fill"\ninclude optional=true "local.kdl"\n' \
     >> /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl
@@ -114,6 +123,25 @@ RUN systemctl --global enable bootsy-dotfiles-init.service bootsy-dotfiles-updat
 # actions. Waybar stays installed as an available fallback, but is not started.
 COPY <<-'EOF' /etc/sway/config.d/40-wallpaper.conf
 output * bg /usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp fill
+EOF
+
+# Replace Sway's title bars and bright-blue focus decoration with a restrained
+# one-pixel neutral border that still makes keyboard focus visible.
+COPY <<-'EOF' /etc/sway/config.d/45-appearance.conf
+default_border pixel 1
+default_floating_border pixel 1
+hide_edge_borders smart
+client.focused          #737985 #252830 #f3f4f6 #737985 #737985
+client.focused_inactive #414650 #252830 #c7c9ce #414650 #414650
+client.unfocused        #343840 #252830 #a9adb5 #343840 #343840
+client.urgent           #bf616a #3b2529 #ffffff #bf616a #bf616a
+EOF
+
+# Fedora's stock Mod+D launches Fuzzel. Keep the familiar shortcut but hand it
+# to DMS Spotlight so the launcher follows the active DMS theme.
+COPY <<-'EOF' /etc/sway/config.d/60-bindings-dms.conf
+unbindsym $mod+d
+bindsym $mod+d exec dms ipc call spotlight toggle
 EOF
 
 COPY <<-'EOF' /etc/sway/config.d/90-bar.conf
@@ -207,10 +235,21 @@ RUN curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
 # Fedora 44 packages, no extra repo needed.
 RUN dnf -y install ptyxis just && dnf clean all
 
-# Flatpak + Flathub, for graphical apps outside the RPM/Homebrew tiers.
+# Flatpak + Flathub, for graphical apps outside the RPM/Homebrew tiers. Zen's
+# own Linux documentation recommends its Flathub build; install it system-wide
+# so every login sees the browser and its desktop entry.
 RUN dnf -y install flatpak \
     && dnf clean all \
-    && flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+    && flatpak remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo \
+    && flatpak install --system --noninteractive flathub app.zen_browser.zen
+
+COPY <<-'EOF' /etc/xdg/mimeapps.list
+[Default Applications]
+text/html=app.zen_browser.zen.desktop
+application/xhtml+xml=app.zen_browser.zen.desktop
+x-scheme-handler/http=app.zen_browser.zen.desktop
+x-scheme-handler/https=app.zen_browser.zen.desktop
+EOF
 
 # ============================== Boot target ==============================
 #

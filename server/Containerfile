@@ -240,6 +240,8 @@ RUN dnf -y install \
     niri \
     DankMaterialShell \
     alacritty \
+    firefox \
+    bluez \
     xdg-desktop-portal \
     xdg-desktop-portal-gtk \
     xdg-desktop-portal-gnome \
@@ -255,7 +257,9 @@ RUN dnf -y install \
     google-noto-emoji-fonts \
     swaybg \
     fedora-workstation-backgrounds \
-    && dnf clean all
+    && dnf clean all \
+    && sed -i 's/^#AutoEnable=true$/AutoEnable=true/' /etc/bluetooth/main.conf \
+    && systemctl enable bluetooth.service
 
 # Original Bootsy wallpapers in the standard shared backgrounds hierarchy,
 # available from DMS's wallpaper picker as well as directly by path.
@@ -267,7 +271,9 @@ COPY wallpapers/ /usr/share/backgrounds/bootsy-linux/
 RUN mkdir -p /usr/share/bootsy/dotfiles/dot_config/niri \
     && printf '// Managed by Bootsy; image updates replace this file.\n// Put personal overrides in ~/.config/niri/local.kdl.\n\n' \
     > /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl \
-    && sed -e '/This line starts waybar/d' -e '/^spawn-at-startup "waybar"$/d' \
+    && sed -e '/This line starts waybar/d' \
+    -e '/^spawn-at-startup "waybar"$/d' \
+    -e 's/Mod+D hotkey-overlay-title="Run an Application: fuzzel" { spawn "fuzzel"; }/Mod+D hotkey-overlay-title="Run an Application: DMS Spotlight" { spawn "dms" "ipc" "call" "spotlight" "toggle"; }/' \
     /usr/share/doc/niri/default-config.kdl >> /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl \
     && printf '\nspawn-at-startup "dms" "run" "--session"\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp" "-m" "fill"\ninclude optional=true "local.kdl"\n' \
     >> /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl
