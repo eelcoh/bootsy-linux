@@ -14,6 +14,7 @@ grep -q 'app.zen_browser.zen' desktop/Containerfile
 grep -q 'firefox' desktop/Containerfile
 grep -q 'firefox' server/Containerfile
 grep -q 'com.github.tchx84.Flatseal' desktop/Containerfile
+grep -q 'io.github.kolunmi.Bazaar' desktop/Containerfile
 grep -q 'exec dms run --session' desktop/Containerfile
 grep -q 'systemctl enable --force cosmic-greeter.service' desktop/Containerfile
 ! grep -qE '^[[:space:]]+sddm-x11' desktop/Containerfile

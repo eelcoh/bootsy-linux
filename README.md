@@ -199,7 +199,8 @@ prepend the active Distrobox name without replacing Candy. See
 
 The desktop additionally includes firmware/Thunderbolt/fingerprint/hybrid-GPU
 and rotation support, power profiles, CUPS and driverless printing/scanning,
-Nautilus, archive/image/PDF/text utilities, COSMIC Store, and Flatseal.
+Nautilus, archive/image/PDF/text utilities, COSMIC Store, Flatseal, and
+Bazaar (Flathub's app store).
 Practical shortcuts and hardware notes live in
 [`desktop/docs/keybindings.md`](desktop/docs/keybindings.md) and
 [`desktop/docs/hardware.md`](desktop/docs/hardware.md).

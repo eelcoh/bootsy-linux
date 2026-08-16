@@ -274,12 +274,15 @@ RUN dnf -y install ptyxis just && dnf clean all
 # own Linux documentation recommends its Flathub build; install it system-wide
 # so every login sees the browser and its desktop entry, and set it as the
 # default browser ahead of the native Firefox package installed above.
+# Flatseal manages per-app Flatpak permissions; Bazaar (the same Flathub app
+# store Bluefin ships) gives a GUI for installing anything else from Flathub.
 RUN dnf -y install flatpak \
     && dnf clean all \
     && flatpak remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo \
     && flatpak install --system --noninteractive flathub \
         app.zen_browser.zen \
-        com.github.tchx84.Flatseal
+        com.github.tchx84.Flatseal \
+        io.github.kolunmi.Bazaar
 
 COPY <<-'EOF' /etc/xdg/mimeapps.list
 [Default Applications]
