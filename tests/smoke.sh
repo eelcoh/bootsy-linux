@@ -2,7 +2,8 @@
 set -euo pipefail
 
 for file in system/bin/bootsy-status system/libexec/bootsy-disk-health \
-    server/bin/bootsy-health server/bin/bootsy-backup; do
+    server/bin/bootsy-health server/bin/bootsy-backup \
+    scripts/make-installer-usb.sh; do
     bash -n "$file"
 done
 

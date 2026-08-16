@@ -118,14 +118,18 @@ creates a login user or sets a root password on its own, so without a
 `[[customizations.user]]` block the install completes with a system nothing
 can log into.
 
-**Hostname is not settable this way.** `bootc-image-builder`'s ISO path
-never writes a hostname into the kickstart it generates, so the install
-always comes up as `fedora` (from the base image's `/usr/lib/os-release`)
-regardless of what's typed into Anaconda or `config.toml`. Set a real one
-after first boot:
+**Hostname and timezone are not settable via plain `config.toml` this way.**
+`bootc-image-builder`'s ISO path never reads a hostname, timezone, language,
+or keyboard customization out of the blueprint — its own default kickstart
+hardcodes `fedora`/UTC/`en_US.UTF-8`/`us` regardless of what's typed into
+Anaconda or `config.toml`. The only thing that reliably works is supplying a
+full custom kickstart body via `[customizations.installer.kickstart]`
+instead (which is what `-n`/`-z` below do); otherwise set them after first
+boot:
 
 ```sh
 sudo hostnamectl set-hostname mybox
+sudo timedatectl set-timezone Europe/Amsterdam
 ```
 
 Swap `--type iso` for `--type qcow2` or `--type raw` for a disk image
@@ -133,11 +137,13 @@ instead of installer media.
 
 [`scripts/make-installer-usb.sh`](scripts/make-installer-usb.sh) automates
 the ISO build above and writes the result straight to a USB stick (defaults
-to the `desktop` flavor):
+to the `desktop` flavor). Add `-n HOSTNAME`/`-z TIMEZONE` to set those
+per-install instead of leaving them at the defaults above:
 
 ```sh
 sudo scripts/make-installer-usb.sh -d /dev/sdb -u eelco
 sudo scripts/make-installer-usb.sh -d /dev/sdb -u eelco -i ghcr.io/eelcoh/bootsy-linux/server:latest
+sudo scripts/make-installer-usb.sh -d /dev/sdb -u eelco -n mybox -z Europe/Amsterdam
 ```
 
 **Scripted, via kickstart on a stock Fedora Anaconda ISO** — no custom image
