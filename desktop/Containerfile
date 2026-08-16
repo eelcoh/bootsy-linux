@@ -183,6 +183,26 @@ RUN mkdir -p '/usr/share/bootsy/dotfiles/dot_config/DankMaterialShell' \
     && printf '{\n  "currentThemeName": "dynamic"\n}\n' \
     > '/usr/share/bootsy/dotfiles/dot_config/DankMaterialShell/create_settings.json'
 
+# DMS's GTK/alacritty matugen templates write generated colors to
+# dank-colors.css/dank-theme.toml, but neither GTK nor alacritty loads those
+# filenames on their own — DMS never touches gtk.css or alacritty.toml
+# itself (confirmed from its matugen configs' output_path entries). This is
+# shared, DE-agnostic wiring (GTK apps and alacritty run in both Niri and
+# Sway sessions), so it lives alongside the niri/DMS chezmoi source above
+# rather than in either DE-specific section. gtk.css is pure plumbing to
+# make dank-colors.css take effect, so it's always-managed like config.kdl;
+# alacritty.toml is a user-facing config file, so it's create_-seeded like
+# session.json — free to edit afterward, including its own import list.
+RUN mkdir -p '/usr/share/bootsy/dotfiles/dot_config/gtk-3.0' \
+        '/usr/share/bootsy/dotfiles/dot_config/gtk-4.0' \
+        '/usr/share/bootsy/dotfiles/dot_config/alacritty' \
+    && printf '@import url("dank-colors.css");\n' \
+        > '/usr/share/bootsy/dotfiles/dot_config/gtk-3.0/gtk.css' \
+    && printf '@import url("dank-colors.css");\n' \
+        > '/usr/share/bootsy/dotfiles/dot_config/gtk-4.0/gtk.css' \
+    && printf '[general]\nimport = ["~/.config/alacritty/dank-theme.toml"]\n' \
+        > '/usr/share/bootsy/dotfiles/dot_config/alacritty/create_alacritty.toml'
+
 COPY niri/systemd/ /usr/lib/systemd/user/
 RUN systemctl --global enable bootsy-dotfiles-init.service bootsy-dotfiles-update.timer
 

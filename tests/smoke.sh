@@ -26,6 +26,11 @@ grep -q 'clip-to-geometry true' desktop/Containerfile
 grep -q 'include optional=true "dms/colors.kdl"' desktop/Containerfile
 grep -q 'dot_config/DankMaterialShell/create_settings.json' desktop/Containerfile
 grep -q '"currentThemeName": "dynamic"' desktop/Containerfile
+grep -q 'dot_config/gtk-3.0/gtk.css' desktop/Containerfile
+grep -q 'dot_config/gtk-4.0/gtk.css' desktop/Containerfile
+grep -q 'dot_config/alacritty/create_alacritty.toml' desktop/Containerfile
+grep -q 'import url("dank-colors.css")' desktop/Containerfile
+grep -q 'dank-theme.toml' desktop/Containerfile
 grep -q 'dot_local/state/DankMaterialShell/create_session.json' desktop/Containerfile
 grep -q 'wallpaperPath' desktop/Containerfile
 grep -q 'systemctl enable --force cosmic-greeter.service' desktop/Containerfile
