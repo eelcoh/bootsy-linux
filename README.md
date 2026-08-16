@@ -186,7 +186,8 @@ group: `sudo usermod -aG docker $USER`, then re-login), `code` (VS Code),
 `mise` (per-project toolchain versions — add `eval "$(mise activate zsh)"`
 to your `~/.zshrc` to enable it, e.g. via chezmoi), `just` (task runner),
 `ptyxis` (a distrobox-integrated terminal alongside alacritty), and
-`flatpak` (Flathub already added as a remote).
+`flatpak` (Flathub and the default apps are installed on first boot by
+`flatpak-bootstrap.service` — give it a few seconds, same as Homebrew above).
 
 Every interactive shell also opens with a `fastfetch` banner (the Boxed
 logo plus OS/kernel/CPU/memory info) — wired up in `base`, so it's on both
@@ -218,6 +219,7 @@ before verification can be enforced safely on hosts.
 ```sh
 journalctl -u cosmic-greeter.service  # login screen not coming up
 journalctl -u brew-setup.service   # bootsy-desktop: Homebrew not showing up after first boot
+journalctl -u flatpak-bootstrap.service  # bootsy-desktop: Zen/Flatseal/Bazaar not showing up after first boot
 ```
 
 See [`server/README.md`](server/README.md#troubleshooting) for

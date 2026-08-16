@@ -276,13 +276,58 @@ RUN dnf -y install ptyxis just && dnf clean all
 # default browser ahead of the native Firefox package installed above.
 # Flatseal manages per-app Flatpak permissions; Bazaar (the same Flathub app
 # store Bluefin ships) gives a GUI for installing anything else from Flathub.
-RUN dnf -y install flatpak \
-    && dnf clean all \
-    && flatpak remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo \
-    && flatpak install --system --noninteractive flathub \
-        app.zen_browser.zen \
-        com.github.tchx84.Flatseal \
-        io.github.kolunmi.Bazaar
+#
+# The `flatpak` package itself installs to /usr and upgrades normally, but
+# `flatpak remote-add --system`/`flatpak install --system` both write under
+# /var/lib/flatpak. bootc only seeds a container image's /var content into a
+# genuinely fresh deployment; on `bootc update` of an already-provisioned
+# machine, /var is left alone, so content added there by a build-time RUN
+# here would silently never appear on any system that isn't freshly
+# installed. So, same as KubeVirt/Agent Substrate/PostgreSQL in
+# server/Containerfile, the actual remote-add/install happens in a
+# first-boot bootstrap service instead.
+RUN dnf -y install flatpak && dnf clean all
+
+COPY <<-'EOF' /usr/local/bin/bootstrap-flatpak.sh
+#!/bin/bash
+set -e
+
+flatpak remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+flatpak install --system --noninteractive flathub \
+    app.zen_browser.zen \
+    com.github.tchx84.Flatseal \
+    io.github.kolunmi.Bazaar
+EOF
+RUN chmod +x /usr/local/bin/bootstrap-flatpak.sh
+
+COPY <<-'EOF' /usr/lib/systemd/system/flatpak-bootstrap.service
+[Unit]
+Description=Install Bootsy's default Flatpak applications
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/var/lib/flatpak/exports/share/applications/app.zen_browser.zen.desktop
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/bootstrap-flatpak.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+RUN systemctl enable flatpak-bootstrap.service
+
+# Flatpak exports each app's .desktop file under
+# /var/lib/flatpak/exports/share, which is only picked up automatically by
+# login shells sourcing /etc/profile.d/flatpak.sh. niri-session/sway are
+# execed directly by greetd with no shell in between, so DMS Spotlight
+# (Mod+D) would otherwise never see Flatpak apps. pam_systemd (greetd's PAM
+# stack includes system-auth, which loads it) imports /etc/environment.d
+# into every session regardless of shell, so set it there instead.
+COPY <<-'EOF' /etc/environment.d/10-flatpak.conf
+XDG_DATA_DIRS=/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/
+EOF
 
 COPY <<-'EOF' /etc/xdg/mimeapps.list
 [Default Applications]

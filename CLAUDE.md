@@ -102,7 +102,11 @@ SELinux is left at Fedora's default `enforcing` in `base`. `server` flips it to 
    - **VS Code** via Microsoft's official repo.
    - **mise** via its own official install script to `/usr/local/bin` (not Fedora-packaged).
    - **Ptyxis** + **Just**, plain Fedora packages, no extra repo.
-   - **Flatpak** + Flathub remote added.
+   - **Flatpak**, with the Flathub remote add and app installs (Zen, Flatseal,
+     Bazaar) deferred to a first-boot `flatpak-bootstrap.service` — both
+     write under `/var/lib/flatpak`, which bootc doesn't re-seed on
+     `bootc update` of an already-provisioned machine, only on a genuinely
+     fresh deployment.
 6. `systemctl set-default graphical.target` — unlike `server`, `desktop` boots straight to the login screen.
 
 ## CI (.github/workflows/)
