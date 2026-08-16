@@ -23,6 +23,9 @@ grep -q 'active-color "#737985"' desktop/Containerfile
 grep -q 'prefer-no-csd' desktop/Containerfile
 grep -q 'geometry-corner-radius 6' desktop/Containerfile
 grep -q 'clip-to-geometry true' desktop/Containerfile
+grep -q 'include optional=true "dms/colors.kdl"' desktop/Containerfile
+grep -q 'dot_config/DankMaterialShell/create_settings.json' desktop/Containerfile
+grep -q '"currentThemeName": "dynamic"' desktop/Containerfile
 grep -q 'dot_local/state/DankMaterialShell/create_session.json' desktop/Containerfile
 grep -q 'wallpaperPath' desktop/Containerfile
 grep -q 'systemctl enable --force cosmic-greeter.service' desktop/Containerfile

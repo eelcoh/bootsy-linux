@@ -153,7 +153,7 @@ RUN mkdir -p /usr/share/bootsy/dotfiles/dot_config/niri \
     -e 's/^        \/\/ on$/        on/' \
     -e 's/^\/\/ prefer-no-csd$/prefer-no-csd/' \
     /usr/share/doc/niri/default-config.kdl >> /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl \
-    && printf '\nwindow-rule {\n    geometry-corner-radius 6\n    clip-to-geometry true\n}\n\nspawn-at-startup "dms" "run" "--session"\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp" "-m" "fill"\ninclude optional=true "local.kdl"\n' \
+    && printf '\nwindow-rule {\n    geometry-corner-radius 6\n    clip-to-geometry true\n}\n\n// Overridden by DMS'"'"'s own matugen-generated colors once dynamic\n// theming runs (see the DankMaterialShell/settings.json seed below); this\n// include is a no-op until that file exists.\ninclude optional=true "dms/colors.kdl"\n\nspawn-at-startup "dms" "run" "--session"\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp" "-m" "fill"\ninclude optional=true "local.kdl"\n' \
     >> /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl
 
 # DMS renders its own background layer per monitor (Modules/WallpaperBackground.qml,
@@ -170,6 +170,18 @@ RUN mkdir -p /usr/share/bootsy/dotfiles/dot_config/niri \
 RUN mkdir -p '/usr/share/bootsy/dotfiles/dot_local/state/DankMaterialShell' \
     && printf '{\n  "wallpaperPath": "/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp"\n}\n' \
     > '/usr/share/bootsy/dotfiles/dot_local/state/DankMaterialShell/create_session.json'
+
+# DMS's own default theme is a static preset ("purple"), not wallpaper-driven.
+# matugen (a hard dependency of the DankMaterialShell RPM, already installed)
+# plus DMS's bundled per-app templates under /usr/share/quickshell/dms/matugen
+# do the actual color generation once theming is switched to "dynamic" — every
+# per-app template toggle (matugenTemplateNiri, matugenTemplateGtk, etc.)
+# already defaults to on in DMS itself, so this one field is what's missing.
+# ~/.config/DankMaterialShell/settings.json is DMS's own live settings store
+# (same create_-once reasoning as session.json above: never reapply this one).
+RUN mkdir -p '/usr/share/bootsy/dotfiles/dot_config/DankMaterialShell' \
+    && printf '{\n  "currentThemeName": "dynamic"\n}\n' \
+    > '/usr/share/bootsy/dotfiles/dot_config/DankMaterialShell/create_settings.json'
 
 COPY niri/systemd/ /usr/lib/systemd/user/
 RUN systemctl --global enable bootsy-dotfiles-init.service bootsy-dotfiles-update.timer
