@@ -176,12 +176,24 @@ deploying workloads/VMs, and bringing up the bundled desktop on demand.
 
 ### bootsy-desktop
 
-Boots straight to the graphical COSMIC login screen. Log in and choose
-Niri+DankMaterialShell or COSMIC. `alacritty` is the default terminal for
-Niri (matches its own `Mod+T` keybind); COSMIC uses its own `cosmic-term`.
+Boots straight to the graphical `dms-greeter` login screen. Log in and
+choose Niri+DankMaterialShell or COSMIC. `alacritty` is the default terminal
+for Niri (matches its own `Mod+T` keybind); COSMIC uses its own `cosmic-term`.
 
 **Switching desktops**: log out, use the session chooser on the graphical
 login screen, and select Niri or COSMIC before logging back in.
+
+**Matching the login screen to your desktop**: `dms-greeter` ships with its
+own generic theme until it's told to match yours — run this once after your
+first login to sync your wallpaper and DMS theme into it:
+
+```sh
+sudo dms-greeter sync
+```
+
+On a multi-user system, every account after the first only needs
+`dms-greeter sync --profile` (after being added to the `greeter` group —
+see `dms-greeter`'s own docs at <https://danklinux.com/docs/dankgreeter>).
 
 **Developer experience** (bluefin-dx-inspired): `brew` (Homebrew, extracted
 to `/var/home/linuxbrew` on first boot by `brew-setup.service` — give it a
@@ -221,7 +233,7 @@ before verification can be enforced safely on hosts.
 ## Troubleshooting
 
 ```sh
-journalctl -u cosmic-greeter.service  # login screen not coming up
+journalctl -u greetd.service  # bootsy-desktop: login screen not coming up
 journalctl -u brew-setup.service   # bootsy-desktop: Homebrew not showing up after first boot
 journalctl -u flatpak-bootstrap.service  # bootsy-desktop: Zen/Flatseal/Bazaar not showing up after first boot
 journalctl --user -u vscode-dms-theme.service  # bootsy-desktop: VS Code's dynamic theme not installed after first login

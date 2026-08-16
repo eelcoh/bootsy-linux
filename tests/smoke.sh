@@ -42,7 +42,11 @@ grep -q 'dot_config/Code/User/create_settings.json' desktop/Containerfile
 grep -q 'Dynamic Base16 DankShell' desktop/Containerfile
 grep -q 'dot_local/state/DankMaterialShell/create_session.json' desktop/Containerfile
 grep -q 'wallpaperPath' desktop/Containerfile
-grep -q 'systemctl enable --force cosmic-greeter.service' desktop/Containerfile
+grep -q 'dnf5 -y copr enable avengemedia/danklinux' desktop/Containerfile
+grep -q 'dnf -y install dms-greeter policycoreutils-python-utils' desktop/Containerfile
+grep -q 'systemctl disable cosmic-greeter.service' desktop/Containerfile
+grep -q 'command = "/usr/bin/dms-greeter --command niri"' desktop/Containerfile
+grep -q 'systemctl enable --force greetd.service' desktop/Containerfile
 ! grep -qE '^[[:space:]]+sddm-x11' desktop/Containerfile
 ! grep -qE '(^|[[:space:]])gdm([[:space:]\\]|$)' desktop/Containerfile
 grep -q 'cosign sign --yes' .github/workflows/build-image.yml

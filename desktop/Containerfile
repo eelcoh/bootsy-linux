@@ -211,19 +211,53 @@ EOF
 
 # ============================== Login / session switching ==============================
 #
-# cosmic-greeter is a graphical display manager and reads the standard
-# wayland-sessions entries above, giving the login screen a proper chooser
-# for Niri and COSMIC.  cosmic-session already requires the greeter,
-# so no additional login stack or hand-maintained greetd configuration is
-# necessary. It also remembers the last user/session, which the graphical
-# alternatives available from Fedora's repos (gtkgreet, tuigreet) don't do
-# out of the box, and regreet isn't packaged for Fedora. cosmic-greeter has
-# been seen to fail to acquire DRM master once ("Backend initialized without
-# output"); its own shipped unit already carries
-# After=plymouth-quit-wait.service and Restart=always/RestartSec=1, so a
-# transient race like that is expected to self-heal rather than needing a
-# different greeter entirely.
-RUN systemctl enable --force cosmic-greeter.service
+# dms-greeter (AvengeMedia's own companion project to DankMaterialShell) is
+# the second deliberate exception to this image family's "Fedora repos only,
+# no third-party repos" rule, alongside Docker's official repo above — it's
+# only published from the avengemedia/danklinux Copr, not Fedora's own repos.
+# Chosen over cosmic-greeter because it remembers the last user/session (like
+# cosmic-greeter, unlike gtkgreet/tuigreet) *and* syncs DMS's own wallpaper
+# and matugen theme into the login screen, matching the dynamic theming
+# wired up above — cosmic-greeter has neither. quickshell, its other
+# dependency besides greetd, is already in Fedora's own repos (confirmed via
+# `dnf5 repoquery`), so only dms-greeter itself needs the Copr.
+# policycoreutils-python-utils provides semanage, which the package's own
+# postinstall scriptlet uses (guarded, no-ops if absent) to label its files
+# with standard SELinux types (bin_t/user_home_dir_t/cache_home_t/usr_t) —
+# install it so that labeling actually happens under base's default
+# enforcing SELinux, which desktop never relaxes.
+RUN dnf -y install dnf5-plugins \
+    && dnf5 -y copr enable avengemedia/danklinux \
+    && dnf -y install dms-greeter policycoreutils-python-utils \
+    && dnf5 -y copr disable avengemedia/danklinux \
+    && dnf clean all
+
+# cosmic-desktop's group still hard-Requires cosmic-greeter (see the Desktops
+# section above), so it's installed and its unit needs disabling explicitly;
+# dms-greeter isn't wired into the display-manager.service alias the way
+# cosmic-greeter is, so greetd's own generic unit is what actually needs
+# enabling, pointed at dms-greeter via a hand-written config.toml.
+RUN systemctl disable cosmic-greeter.service
+
+COPY <<-'EOF' /etc/greetd/config.toml
+[terminal]
+vt = 1
+
+[default_session]
+user = "greeter"
+command = "/usr/bin/dms-greeter --command niri"
+EOF
+
+RUN systemctl enable --force greetd.service
+
+# dms-greeter ships its own bundled default niri config
+# (Modules/Greetd/assets/dms-niri.kdl) as a fallback, so the login screen is
+# fully functional out of the box, just generically themed. Getting it to
+# actually show Bootsy's wallpaper/theme requires `dms-greeter sync`, which
+# reads *a real user's* ~/.config/DankMaterialShell — nothing this image can
+# do at build time or unattended on first boot before that user exists. Per
+# dms-greeter's own docs this is meant to be a one-time admin action anyway
+# (see README.md's "First boot" section for the exact command).
 
 # ============================== Developer experience (bluefin-dx-inspired) ==============================
 #
