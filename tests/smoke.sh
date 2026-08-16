@@ -20,6 +20,9 @@ grep -q 'XDG_DATA_DIRS=/var/lib/flatpak/exports/share' desktop/Containerfile
 grep -q 'exec dms run --session' desktop/Containerfile
 grep -q 'active-color "#7fc8ff"' desktop/Containerfile
 grep -q 'active-color "#737985"' desktop/Containerfile
+grep -q 'prefer-no-csd' desktop/Containerfile
+grep -q 'geometry-corner-radius 6' desktop/Containerfile
+grep -q 'clip-to-geometry true' desktop/Containerfile
 grep -q 'dot_local/state/DankMaterialShell/create_session.json' desktop/Containerfile
 grep -q 'wallpaperPath' desktop/Containerfile
 grep -q 'systemctl enable --force cosmic-greeter.service' desktop/Containerfile

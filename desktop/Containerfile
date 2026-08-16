@@ -136,7 +136,13 @@ EOF
 #
 # Niri's stock default.kdl ships its focus-ring on by default with
 # active-color "#7fc8ff" (light blue); recolor it to the same neutral tone
-# used for Sway's border below, for a consistent look across sessions.
+# used for Sway's border below, for a consistent look across sessions. Also
+# enable prefer-no-csd and a window-rule with geometry-corner-radius +
+# clip-to-geometry (both off/commented out by default): without them niri's
+# focus-ring draws around the client's full rectangular surface even when the
+# client rounds its own corners via CSD, producing a border that visibly
+# doesn't follow the window shape. Shadows are off by default too; turn them
+# on, keeping niri's own stock softness/spread/offset/color values.
 RUN mkdir -p /usr/share/bootsy/dotfiles/dot_config/niri \
     && printf '// Managed by Bootsy; image updates replace this file.\n// Put personal overrides in ~/.config/niri/local.kdl.\n\n' \
     > /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl \
@@ -144,8 +150,10 @@ RUN mkdir -p /usr/share/bootsy/dotfiles/dot_config/niri \
     -e '/^spawn-at-startup "waybar"$/d' \
     -e 's/Mod+D hotkey-overlay-title="Run an Application: fuzzel" { spawn "fuzzel"; }/Mod+D hotkey-overlay-title="Run an Application: DMS Spotlight" { spawn "dms" "ipc" "call" "spotlight" "toggle"; }/' \
     -e 's/active-color "#7fc8ff"/active-color "#737985"/' \
+    -e 's/^        \/\/ on$/        on/' \
+    -e 's/^\/\/ prefer-no-csd$/prefer-no-csd/' \
     /usr/share/doc/niri/default-config.kdl >> /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl \
-    && printf '\nspawn-at-startup "dms" "run" "--session"\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp" "-m" "fill"\ninclude optional=true "local.kdl"\n' \
+    && printf '\nwindow-rule {\n    geometry-corner-radius 6\n    clip-to-geometry true\n}\n\nspawn-at-startup "dms" "run" "--session"\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp" "-m" "fill"\ninclude optional=true "local.kdl"\n' \
     >> /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl
 
 # DMS renders its own background layer per monitor (Modules/WallpaperBackground.qml,
