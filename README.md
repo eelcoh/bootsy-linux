@@ -45,10 +45,11 @@ which the managed config includes but does not overwrite. On the desktop
 image, DankMaterialShell is also the default shell and bar for Sway; Waybar
 remains installed as an optional fallback. `Mod+D` opens DMS Spotlight rather
 than Fuzzel in both sessions, and Sway uses a compact neutral focus border
-without window title bars. Zen Browser is installed system-wide from Flathub
-and configured as the default browser on the desktop image. The server's
-optional graphical session uses Fedora's native Firefox package and does not
-include Flatpak.
+without window title bars. Firefox is installed natively on both images.
+The desktop image also installs Zen Browser system-wide from Flathub and
+configures it as the default browser ahead of Firefox; the server's
+optional graphical session does not include Flatpak, so Firefox is its
+only browser.
 
 Bluetooth is explicitly provided by BlueZ and enabled from first boot on both
 images. Pair devices from DMS Control Center or COSMIC Settings. This applies

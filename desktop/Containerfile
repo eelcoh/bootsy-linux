@@ -32,8 +32,8 @@ RUN printf 'FLAVOR=desktop\nVERSION=%s\nVCS_REF=%s\n' "$BOOTSY_VERSION" "$VCS_RE
 #   used as the graphical display manager in the login section below.
 # - alacritty: terminal for niri (matches its default Mod+T keybind) and
 #   sway; COSMIC uses its own cosmic-term from the group.
-# - Zen Browser: installed system-wide from its officially recommended Flathub
-#   distribution later in this file, after Flatpak is configured.
+# - firefox: Fedora's native package, installed alongside Zen as a
+#   non-Flatpak fallback browser. Zen (below, via Flatpak) is the default.
 # - bluez: explicit Bluetooth stack rather than relying on incidental desktop
 #   group dependencies; DMS and COSMIC provide the pairing UI.
 # - xdg-desktop-portal(-gtk/-gnome/-wlr/-cosmic), gnome-keyring, polkit-kde,
@@ -82,6 +82,7 @@ RUN dnf -y install \
     evince \
     gnome-text-editor \
     nautilus \
+    firefox \
     && dnf -y group install cosmic-desktop \
     && dnf clean all \
     && sed -i 's/^#AutoEnable=true$/AutoEnable=true/' /etc/bluetooth/main.conf \
@@ -271,7 +272,8 @@ RUN dnf -y install ptyxis just && dnf clean all
 
 # Flatpak + Flathub, for graphical apps outside the RPM/Homebrew tiers. Zen's
 # own Linux documentation recommends its Flathub build; install it system-wide
-# so every login sees the browser and its desktop entry.
+# so every login sees the browser and its desktop entry, and set it as the
+# default browser ahead of the native Firefox package installed above.
 RUN dnf -y install flatpak \
     && dnf clean all \
     && flatpak remote-add --system --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo \
