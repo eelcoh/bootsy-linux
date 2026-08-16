@@ -99,7 +99,7 @@ SELinux is left at Fedora's default `enforcing` in `base`. `server` flips it to 
 5. **Developer experience** — bluefin-dx-inspired, not a 1:1 port (skips Incus, JetBrains Toolbox, GPU compute libs, kernel tracing tools — none of that was asked for; add it the same way if it's ever wanted):
    - **Docker Engine** via Docker's official repo (`download.docker.com`) — Fedora's own repos don't ship `docker-ce`, so this is the one deliberate exception to the "Fedora repos only, no third-party repos" rule the rest of this image family follows. Uses dnf5's `config-manager addrepo --from-repofile=` syntax, not dnf4's `--add-repo`.
    - **Homebrew** via `COPY --from=ghcr.io/ublue-os/brew:latest /system_files /` + `brew-setup.service` — Homebrew's installer refuses to run as root (which a Containerfile `RUN` is), so this bakes in ublue-os's own pre-packaged image and extracts it to `/var/home/linuxbrew` on first boot instead, per their documented integration pattern.
-   - **VS Code** via Microsoft's official repo.
+   - **VS Code** via Microsoft's official repo, plus a first-login `vscode-dms-theme.service` (same one-time pattern as the chezmoi dotfiles init) that installs DMS's bundled dynamic-theme extension and a `create_`-seeded `Code/User/settings.json` selecting it, so VS Code's colors follow the wallpaper too.
    - **mise** via its own official install script to `/usr/local/bin` (not Fedora-packaged).
    - **Ptyxis** + **Just**, plain Fedora packages, no extra repo.
    - **Flatpak**, with the Flathub remote add and app installs (Zen, Flatseal,

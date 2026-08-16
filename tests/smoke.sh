@@ -31,6 +31,10 @@ grep -q 'dot_config/gtk-4.0/gtk.css' desktop/Containerfile
 grep -q 'dot_config/alacritty/create_alacritty.toml' desktop/Containerfile
 grep -q 'import url("dank-colors.css")' desktop/Containerfile
 grep -q 'dank-theme.toml' desktop/Containerfile
+grep -q 'systemctl --global enable vscode-dms-theme.service' desktop/Containerfile
+grep -q 'code --install-extension /usr/share/quickshell/dms/matugen/dms-theme.vsix' desktop/Containerfile
+grep -q 'dot_config/Code/User/create_settings.json' desktop/Containerfile
+grep -q 'Dynamic Base16 DankShell' desktop/Containerfile
 grep -q 'dot_local/state/DankMaterialShell/create_session.json' desktop/Containerfile
 grep -q 'wallpaperPath' desktop/Containerfile
 grep -q 'systemctl enable --force cosmic-greeter.service' desktop/Containerfile

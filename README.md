@@ -220,6 +220,7 @@ before verification can be enforced safely on hosts.
 journalctl -u cosmic-greeter.service  # login screen not coming up
 journalctl -u brew-setup.service   # bootsy-desktop: Homebrew not showing up after first boot
 journalctl -u flatpak-bootstrap.service  # bootsy-desktop: Zen/Flatseal/Bazaar not showing up after first boot
+journalctl --user -u vscode-dms-theme.service  # bootsy-desktop: VS Code's dynamic theme not installed after first login
 ```
 
 See [`server/README.md`](server/README.md#troubleshooting) for

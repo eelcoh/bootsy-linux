@@ -322,6 +322,34 @@ gpgkey=https://packages.microsoft.com/keys/microsoft.asc
 EOF
 RUN dnf -y install code && dnf clean all
 
+# DMS's VS Code integration ships as an actual extension (a theme JSON with
+# "_watch": true per theme, which VS Code reloads live on disk changes) that
+# DMS's matugen template writes into once installed — there's no config file
+# to seed the way GTK/alacritty needed above, but the extension itself has to
+# be installed per-user, so it gets the same one-time first-login service
+# pattern already used for the chezmoi dotfiles init above.
+COPY <<-'EOF' /usr/lib/systemd/user/vscode-dms-theme.service
+[Unit]
+Description=Install DMS's dynamic-theme VS Code extension
+ConditionPathExists=!%h/.config/bootsy/vscode-dms-theme-installed
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/mkdir -p %h/.config/bootsy
+ExecStart=/usr/bin/code --install-extension /usr/share/quickshell/dms/matugen/dms-theme.vsix --force
+ExecStart=/usr/bin/touch %h/.config/bootsy/vscode-dms-theme-installed
+
+[Install]
+WantedBy=default.target
+EOF
+RUN systemctl --global enable vscode-dms-theme.service
+
+# Select the extension's theme by default; create_-seeded like alacritty.toml
+# above, since ~/.config/Code/User/settings.json is a real user settings file.
+RUN mkdir -p '/usr/share/bootsy/dotfiles/dot_config/Code/User' \
+    && printf '{\n  "workbench.colorTheme": "Dynamic Base16 DankShell"\n}\n' \
+    > '/usr/share/bootsy/dotfiles/dot_config/Code/User/create_settings.json'
+
 # mise: not packaged by Fedora, installed via its own official script
 # straight to /usr/local/bin (MISE_INSTALL_PATH overrides its normal
 # per-user ~/.local/bin default, appropriate for a system image).
