@@ -35,17 +35,16 @@ about *using* the appliances once installed.
 |---|---|
 | `ghcr.io/eelcoh/bootsy-linux/base` | Plain Fedora bootc + KVM/libvirt + zsh/chezmoi/dev tooling. No desktop, no Kubernetes. Not published/used standalone — the shared parent of both flavors below. |
 | `ghcr.io/eelcoh/bootsy-linux/server` | base + K3s + KubeVirt + Agent Substrate + PostgreSQL, all in one image, plus a basic Niri+DankMaterialShell desktop for when a monitor's plugged in. Boots headless by default. See [`server/README.md`](server/README.md). |
-| `ghcr.io/eelcoh/bootsy-linux/desktop` | base + Niri/DankMaterialShell (default), Sway, and COSMIC, switchable at login, plus a bluefin-dx-inspired developer experience layer (Homebrew, Docker, VS Code, mise, Flatpak). No Kubernetes. Boots to the login screen. |
+| `ghcr.io/eelcoh/bootsy-linux/desktop` | base + Niri/DankMaterialShell (default) and COSMIC, switchable at login, plus a bluefin-dx-inspired developer experience layer (Homebrew, Docker, VS Code, mise, Flatpak). No Kubernetes. Boots to the login screen. |
 
 Both Niri installations seed `~/.config/niri/config.kdl` from Fedora's
 package default on the first graphical login, so the standard keybindings and
 settings work immediately. Bootsy manages that file with chezmoi and refreshes
 it after image updates. Put personal changes in `~/.config/niri/local.kdl`,
-which the managed config includes but does not overwrite. On the desktop
-image, DankMaterialShell is also the default shell and bar for Sway; Waybar
-remains installed as an optional fallback. `Mod+D` opens DMS Spotlight rather
-than Fuzzel in both sessions, and Sway uses a compact neutral focus border
-without window title bars. Firefox is installed natively on both images.
+which the managed config includes but does not overwrite. `Mod+D` opens
+DMS Spotlight rather than Fuzzel, and niri's focus ring and window corners
+are rounded and shadowed rather than niri's stock square/flat look.
+Firefox is installed natively on both images.
 The desktop image also installs Zen Browser system-wide from Flathub and
 configures it as the default browser ahead of Firefox; the server's
 optional graphical session does not include Flatpak, so Firefox is its
@@ -57,9 +56,9 @@ to the installed OS; the separate Anaconda environment on generated installer
 media controls whether Bluetooth input works during installation itself.
 
 The original Bootsy wallpaper collection is installed at
-`/usr/share/backgrounds/bootsy-linux`. DMS exposes it to both Niri and Sway,
-and COSMIC can select the same files from its wallpaper settings. The dark
-`bootsy-zircon-flow.webp` artwork is the default in all three sessions.
+`/usr/share/backgrounds/bootsy-linux`. DMS exposes it to Niri, and COSMIC
+can select the same files from its wallpaper settings. The dark
+`bootsy-zircon-flow.webp` artwork is the default in both sessions.
 
 ## Prerequisites
 
@@ -172,12 +171,11 @@ deploying workloads/VMs, and bringing up the bundled desktop on demand.
 ### bootsy-desktop
 
 Boots straight to the graphical COSMIC login screen. Log in and choose
-Niri+DankMaterialShell, Sway, or COSMIC. `alacritty` is the default
-terminal for Niri/Sway (matches Niri's own `Mod+T` keybind); COSMIC uses its
-own `cosmic-term`.
+Niri+DankMaterialShell or COSMIC. `alacritty` is the default terminal for
+Niri (matches its own `Mod+T` keybind); COSMIC uses its own `cosmic-term`.
 
 **Switching desktops**: log out, use the session chooser on the graphical
-login screen, and select Niri, Sway, or COSMIC before logging back in.
+login screen, and select Niri or COSMIC before logging back in.
 
 **Developer experience** (bluefin-dx-inspired): `brew` (Homebrew, extracted
 to `/var/home/linuxbrew` on first boot by `brew-setup.service` — give it a

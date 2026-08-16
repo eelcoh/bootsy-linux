@@ -17,7 +17,11 @@ grep -q 'com.github.tchx84.Flatseal' desktop/Containerfile
 grep -q 'io.github.kolunmi.Bazaar' desktop/Containerfile
 grep -q 'systemctl enable flatpak-bootstrap.service' desktop/Containerfile
 grep -q 'XDG_DATA_DIRS=/var/lib/flatpak/exports/share' desktop/Containerfile
-grep -q 'exec dms run --session' desktop/Containerfile
+grep -q 'spawn-at-startup "dms" "run" "--session"' desktop/Containerfile
+! grep -qE '^\s+sway\s*\\$' desktop/Containerfile
+! grep -q 'sway-config-fedora' desktop/Containerfile
+! grep -q '/etc/sway/' desktop/Containerfile
+! grep -q 'wayland-sessions/sway.desktop' desktop/Containerfile
 grep -q 'active-color "#7fc8ff"' desktop/Containerfile
 grep -q 'active-color "#737985"' desktop/Containerfile
 grep -q 'prefer-no-csd' desktop/Containerfile

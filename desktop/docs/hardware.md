@@ -10,4 +10,4 @@ kernel driver.
 - Use `powerprofilesctl` for power modes. Battery charge thresholds are not
   forced globally because their sysfs interfaces and safe limits vary by model.
 - Test camera/microphone/screen sharing in Zen; the PipeWire and portal stacks
-  are installed for Niri, Sway, and COSMIC.
+  are installed for Niri and COSMIC.

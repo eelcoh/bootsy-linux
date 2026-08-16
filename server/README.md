@@ -160,7 +160,7 @@ sudo systemctl set-default graphical.target  # persist across reboots
 Login uses `tuigreet` (not DMS's own bundled greeter — see
 [`../CLAUDE.md`](../CLAUDE.md) for why); it's a single fixed session, no
 picker, no theming, no dev-experience layer. If you want the full desktop
-experience with Sway/COSMIC switching and the bluefin-dx-inspired dev tools,
+experience with Niri/COSMIC switching and the bluefin-dx-inspired dev tools,
 that's what `bootsy-desktop` is for.
 
 When launching directly from a TTY, use `niri-session`; plain `/usr/bin/niri`

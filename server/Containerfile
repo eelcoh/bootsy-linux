@@ -265,7 +265,7 @@ RUN systemctl enable postgresql-bootstrap.service postgresql.service
 # ============================== Basic Niri+DMS desktop ==============================
 
 # Deliberately "basic": a single fixed session (no picker, unlike
-# bootsy-desktop's three), no theming, no dev-experience layer. It's here so
+# bootsy-desktop's two), no theming, no dev-experience layer. It's here so
 # a monitor plugged into the box gets a usable desktop, not as the primary
 # way to use bootsy-server.
 #

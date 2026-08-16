@@ -7,22 +7,20 @@ ARG VCS_REF=unknown
 RUN printf 'FLAVOR=desktop\nVERSION=%s\nVCS_REF=%s\n' "$BOOTSY_VERSION" "$VCS_REF" \
         > /usr/lib/bootsy-release
 
-# bootsy-desktop: Niri+DankMaterialShell, Sway, and COSMIC installed
+# bootsy-desktop: Niri+DankMaterialShell and COSMIC installed
 # side by side, switchable at the graphical login screen rather
-# than three separate images the way kubevirt-host-bootc-image did it.
+# than two separate images the way kubevirt-host-bootc-image did it.
 # Plus a bluefin-dx-inspired developer
 # experience layer (Homebrew, Docker, VS Code, mise, Ptyxis, Flatpak).
 
 # ============================== Desktops ==============================
 #
-# All three DEs' packages plus their shared portal/audio/font stack, in one
+# Both DEs' packages plus their shared portal/audio/font stack, in one
 # transaction. Package names/versions confirmed directly against Fedora 44
 # repos (`dnf5 repoquery`) while building this image, no COPRs.
 #
 # - niri + DankMaterialShell: scrollable-tiling
 #   compositor + DMS's Quickshell-based bar/launcher/lock/notifications).
-# - sway + sway-config-fedora + waybar + swaylock/swayidle: i3-compatible
-#   wlroots compositor with Fedora's own stock config.
 # - cosmic-desktop (comps group, pulls in the compositor/panel/apps) +
 #   xdg-desktop-portal-cosmic: System76's COSMIC. cosmic-greeter isn't in
 #   the group's own mandatory/default package list, but cosmic-session
@@ -30,8 +28,8 @@ RUN printf 'FLAVOR=desktop\nVERSION=%s\nVCS_REF=%s\n' "$BOOTSY_VERSION" "$VCS_RE
 #   `dnf5 repoquery --whatrequires cosmic-greeter` lists every cosmic-session
 #   build), so it ends up installed regardless of not being asked for. It's
 #   used as the graphical display manager in the login section below.
-# - alacritty: terminal for niri (matches its default Mod+T keybind) and
-#   sway; COSMIC uses its own cosmic-term from the group.
+# - alacritty: terminal for niri (matches its default Mod+T keybind);
+#   COSMIC uses its own cosmic-term from the group.
 # - firefox: Fedora's native package, installed alongside Zen as a
 #   non-Flatpak fallback browser. Zen (below, via Flatpak) is the default.
 # - bluez: explicit Bluetooth stack rather than relying on incidental desktop
@@ -41,11 +39,6 @@ RUN printf 'FLAVOR=desktop\nVERSION=%s\nVCS_REF=%s\n' "$BOOTSY_VERSION" "$VCS_RE
 RUN dnf -y install \
     niri \
     DankMaterialShell \
-    sway \
-    sway-config-fedora \
-    waybar \
-    swaylock \
-    swayidle \
     xdg-desktop-portal-cosmic \
     alacritty \
     bluez \
@@ -90,14 +83,14 @@ RUN dnf -y install \
 
 COPY desktop/docs/ /usr/share/doc/bootsy/desktop/
 
-# Original Bootsy wallpaper collection, shared by Niri/DMS, Sway/DMS, and
-# COSMIC. Keeping every image in the standard system backgrounds hierarchy
+# Original Bootsy wallpaper collection, shared by Niri/DMS and COSMIC.
+# Keeping every image in the standard system backgrounds hierarchy
 # makes the same collection available to each desktop's wallpaper picker.
 COPY wallpapers/ /usr/share/backgrounds/bootsy-linux/
 
 # ============================== Session entries ==============================
 #
-# Explicit wayland-sessions entries for all three, rather than trusting each
+# Explicit wayland-sessions entries for both, rather than trusting each
 # RPM's own file naming/labelling to stay stable across Fedora releases, so
 # the graphical greeter always offers these stable names and commands.
 RUN mkdir -p /usr/share/wayland-sessions
@@ -107,14 +100,6 @@ COPY <<-'EOF' /usr/share/wayland-sessions/niri.desktop
 Name=Niri (DankMaterialShell)
 Comment=A scrollable-tiling Wayland compositor
 Exec=niri-session
-Type=Application
-EOF
-
-COPY <<-'EOF' /usr/share/wayland-sessions/sway.desktop
-[Desktop Entry]
-Name=Sway
-Comment=An i3-compatible tiling Wayland compositor
-Exec=sway
 Type=Application
 EOF
 
@@ -135,9 +120,9 @@ EOF
 # provides a stable place for overrides across image updates.
 #
 # Niri's stock default.kdl ships its focus-ring on by default with
-# active-color "#7fc8ff" (light blue); recolor it to the same neutral tone
-# used for Sway's border below, for a consistent look across sessions. Also
-# enable prefer-no-csd and a window-rule with geometry-corner-radius +
+# active-color "#7fc8ff" (light blue); recolor it to a restrained neutral
+# gray-blue instead. Also enable prefer-no-csd and a window-rule with
+# geometry-corner-radius +
 # clip-to-geometry (both off/commented out by default): without them niri's
 # focus-ring draws around the client's full rectangular surface even when the
 # client rounds its own corners via CSD, producing a border that visibly
@@ -186,11 +171,11 @@ RUN mkdir -p '/usr/share/bootsy/dotfiles/dot_config/DankMaterialShell' \
 # DMS's GTK/alacritty matugen templates write generated colors to
 # dank-colors.css/dank-theme.toml, but neither GTK nor alacritty loads those
 # filenames on their own — DMS never touches gtk.css or alacritty.toml
-# itself (confirmed from its matugen configs' output_path entries). This is
-# shared, DE-agnostic wiring (GTK apps and alacritty run in both Niri and
-# Sway sessions), so it lives alongside the niri/DMS chezmoi source above
-# rather than in either DE-specific section. gtk.css is pure plumbing to
-# make dank-colors.css take effect, so it's always-managed like config.kdl;
+# itself (confirmed from its matugen configs' output_path entries). COSMIC
+# has its own theming system, so this is niri-specific; it lives alongside
+# the niri/DMS chezmoi source above rather than in a separate section.
+# gtk.css is pure plumbing to make dank-colors.css take effect, so it's
+# always-managed like config.kdl;
 # alacritty.toml is a user-facing config file, so it's create_-seeded like
 # session.json — free to edit afterward, including its own import list.
 RUN mkdir -p '/usr/share/bootsy/dotfiles/dot_config/gtk-3.0' \
@@ -205,37 +190,6 @@ RUN mkdir -p '/usr/share/bootsy/dotfiles/dot_config/gtk-3.0' \
 
 COPY niri/systemd/ /usr/lib/systemd/user/
 RUN systemctl --global enable bootsy-dotfiles-init.service bootsy-dotfiles-update.timer
-
-# sway: sway-config-fedora layers /etc/sway/config.d over its vendor snippets.
-# Keep the wallpaper override and shadow its 90-bar.conf with DMS, which is
-# launched by Sway so it inherits SWAYSOCK and can control workspaces/session
-# actions. Waybar stays installed as an available fallback, but is not started.
-COPY <<-'EOF' /etc/sway/config.d/40-wallpaper.conf
-output * bg /usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp fill
-EOF
-
-# Replace Sway's title bars and bright-blue focus decoration with a restrained
-# one-pixel neutral border that still makes keyboard focus visible.
-COPY <<-'EOF' /etc/sway/config.d/45-appearance.conf
-default_border pixel 1
-default_floating_border pixel 1
-hide_edge_borders smart
-client.focused          #737985 #252830 #f3f4f6 #737985 #737985
-client.focused_inactive #414650 #252830 #c7c9ce #414650 #414650
-client.unfocused        #343840 #252830 #a9adb5 #343840 #343840
-client.urgent           #bf616a #3b2529 #ffffff #bf616a #bf616a
-EOF
-
-# Fedora's stock Mod+D launches Fuzzel. Keep the familiar shortcut but hand it
-# to DMS Spotlight so the launcher follows the active DMS theme.
-COPY <<-'EOF' /etc/sway/config.d/60-bindings-dms.conf
-unbindsym $mod+d
-bindsym $mod+d exec dms ipc call spotlight toggle
-EOF
-
-COPY <<-'EOF' /etc/sway/config.d/90-bar.conf
-exec dms run --session
-EOF
 
 # cosmic: cosmic-config (the RON-based settings store every COSMIC
 # component uses) layers ~/.config/cosmic (highest) > /etc/xdg/cosmic
@@ -259,7 +213,7 @@ EOF
 #
 # cosmic-greeter is a graphical display manager and reads the standard
 # wayland-sessions entries above, giving the login screen a proper chooser
-# for Niri, Sway, and COSMIC.  cosmic-session already requires the greeter,
+# for Niri and COSMIC.  cosmic-session already requires the greeter,
 # so no additional login stack or hand-maintained greetd configuration is
 # necessary. It also remembers the last user/session, which the graphical
 # alternatives available from Fedora's repos (gtkgreet, tuigreet) don't do
@@ -409,8 +363,8 @@ RUN systemctl enable flatpak-bootstrap.service
 
 # Flatpak exports each app's .desktop file under
 # /var/lib/flatpak/exports/share, which is only picked up automatically by
-# login shells sourcing /etc/profile.d/flatpak.sh. niri-session/sway are
-# execed directly by greetd with no shell in between, so DMS Spotlight
+# login shells sourcing /etc/profile.d/flatpak.sh. niri-session is execed
+# directly by greetd with no shell in between, so DMS Spotlight
 # (Mod+D) would otherwise never see Flatpak apps. pam_systemd (greetd's PAM
 # stack includes system-auth, which loads it) imports /etc/environment.d
 # into every session regardless of shell, so set it there instead.
