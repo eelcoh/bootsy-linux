@@ -28,8 +28,8 @@ RUN printf 'FLAVOR=desktop\nVERSION=%s\nVCS_REF=%s\n' "$BOOTSY_VERSION" "$VCS_RE
 #   the group's own mandatory/default package list, but cosmic-session
 #   (which is) hard-Requires it as of Fedora 44's packaging (confirmed:
 #   `dnf5 repoquery --whatrequires cosmic-greeter` lists every cosmic-session
-#   build), so it ends up installed regardless of not being asked for. Bootsy
-#   disables its display-manager unit in favor of graphical gtkgreet.
+#   build), so it ends up installed regardless of not being asked for. It's
+#   used as the graphical display manager in the login section below.
 # - alacritty: terminal for niri (matches its default Mod+T keybind) and
 #   sway; COSMIC uses its own cosmic-term from the group.
 # - Zen Browser: installed system-wide from its officially recommended Flathub
@@ -46,8 +46,6 @@ RUN dnf -y install \
     waybar \
     swaylock \
     swayidle \
-    greetd \
-    gtkgreet \
     xdg-desktop-portal-cosmic \
     alacritty \
     bluez \
@@ -197,56 +195,19 @@ EOF
 
 # ============================== Login / session switching ==============================
 #
-# COSMIC Greeter runs a second COSMIC compositor for the login screen. On some
-# otherwise-supported Intel systems it fails to acquire DRM master and exits
-# with "Backend initialized without output". gtkgreet supplies a real GTK
-# graphical login inside a dedicated minimal Sway compositor. XWayland is
-# explicitly disabled in the greeter, and the compositor exits as soon as
-# greetd starts the selected Niri, Sway, or COSMIC session.
-COPY <<-'EOF' /etc/greetd/config.toml
-[terminal]
-vt = 1
-
-[default_session]
-command = "sway --config /etc/greetd/sway-config"
-user = "greetd"
-EOF
-
-COPY <<-'EOF' /etc/greetd/sway-config
-xwayland disable
-output * bg /usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp fill
-exec "gtkgreet -l -s /etc/greetd/gtkgreet.css; swaymsg exit"
-EOF
-
-COPY <<-'EOF' /etc/greetd/environments
-niri-session
-sway
-cosmic-session
-EOF
-
-COPY <<-'EOF' /etc/greetd/gtkgreet.css
-window {
-    background-color: transparent;
-    color: #f3f4f6;
-    font-family: "Noto Sans";
-    font-size: 16px;
-}
-
-box#body {
-    background-color: rgba(24, 27, 34, 0.90);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    border-radius: 18px;
-    padding: 42px;
-}
-
-entry, button, combobox {
-    border-radius: 9px;
-    padding: 8px;
-}
-EOF
-
-RUN systemctl disable cosmic-greeter.service \
-    && systemctl enable --force greetd.service
+# cosmic-greeter is a graphical display manager and reads the standard
+# wayland-sessions entries above, giving the login screen a proper chooser
+# for Niri, Sway, and COSMIC.  cosmic-session already requires the greeter,
+# so no additional login stack or hand-maintained greetd configuration is
+# necessary. It also remembers the last user/session, which the graphical
+# alternatives available from Fedora's repos (gtkgreet, tuigreet) don't do
+# out of the box, and regreet isn't packaged for Fedora. cosmic-greeter has
+# been seen to fail to acquire DRM master once ("Backend initialized without
+# output"); its own shipped unit already carries
+# After=plymouth-quit-wait.service and Restart=always/RestartSec=1, so a
+# transient race like that is expected to self-heal rather than needing a
+# different greeter entirely.
+RUN systemctl enable --force cosmic-greeter.service
 
 # ============================== Developer experience (bluefin-dx-inspired) ==============================
 #
