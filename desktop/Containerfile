@@ -133,15 +133,36 @@ EOF
 # graphical session. The user-level config is important: it gives every
 # account a visible, editable baseline while the optional local.kdl include
 # provides a stable place for overrides across image updates.
+#
+# Niri's stock default.kdl ships its focus-ring on by default with
+# active-color "#7fc8ff" (light blue); recolor it to the same neutral tone
+# used for Sway's border below, for a consistent look across sessions.
 RUN mkdir -p /usr/share/bootsy/dotfiles/dot_config/niri \
     && printf '// Managed by Bootsy; image updates replace this file.\n// Put personal overrides in ~/.config/niri/local.kdl.\n\n' \
     > /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl \
     && sed -e '/This line starts waybar/d' \
     -e '/^spawn-at-startup "waybar"$/d' \
     -e 's/Mod+D hotkey-overlay-title="Run an Application: fuzzel" { spawn "fuzzel"; }/Mod+D hotkey-overlay-title="Run an Application: DMS Spotlight" { spawn "dms" "ipc" "call" "spotlight" "toggle"; }/' \
+    -e 's/active-color "#7fc8ff"/active-color "#737985"/' \
     /usr/share/doc/niri/default-config.kdl >> /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl \
     && printf '\nspawn-at-startup "dms" "run" "--session"\nspawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp" "-m" "fill"\ninclude optional=true "local.kdl"\n' \
     >> /usr/share/bootsy/dotfiles/dot_config/niri/config.kdl
+
+# DMS renders its own background layer per monitor (Modules/WallpaperBackground.qml,
+# WlrLayer.Background) from ~/.local/state/DankMaterialShell/session.json, entirely
+# separate from the swaybg process above. That file starts out with no
+# wallpaperPath set, so on first login DMS's own background layer is blank/black
+# until the user picks a wallpaper in its settings — which briefly hides the
+# correct swaybg image underneath and, once DMS finishes its (slow) Quickshell
+# startup, replaces it with nothing until manually configured. Seed it with
+# Bootsy's default wallpaper so DMS agrees with swaybg from the start. Uses
+# chezmoi's create_ prefix (write once, never touch again) rather than the
+# always-reapplied config.kdl above, since this file is DMS's own live state —
+# clobbering it daily would reset the user's actual wallpaper/theme choices.
+RUN mkdir -p '/usr/share/bootsy/dotfiles/dot_local/state/DankMaterialShell' \
+    && printf '{\n  "wallpaperPath": "/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp"\n}\n' \
+    > '/usr/share/bootsy/dotfiles/dot_local/state/DankMaterialShell/create_session.json'
+
 COPY niri/systemd/ /usr/lib/systemd/user/
 RUN systemctl --global enable bootsy-dotfiles-init.service bootsy-dotfiles-update.timer
 

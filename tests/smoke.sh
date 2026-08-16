@@ -18,6 +18,10 @@ grep -q 'io.github.kolunmi.Bazaar' desktop/Containerfile
 grep -q 'systemctl enable flatpak-bootstrap.service' desktop/Containerfile
 grep -q 'XDG_DATA_DIRS=/var/lib/flatpak/exports/share' desktop/Containerfile
 grep -q 'exec dms run --session' desktop/Containerfile
+grep -q 'active-color "#7fc8ff"' desktop/Containerfile
+grep -q 'active-color "#737985"' desktop/Containerfile
+grep -q 'dot_local/state/DankMaterialShell/create_session.json' desktop/Containerfile
+grep -q 'wallpaperPath' desktop/Containerfile
 grep -q 'systemctl enable --force cosmic-greeter.service' desktop/Containerfile
 ! grep -qE '^[[:space:]]+sddm-x11' desktop/Containerfile
 ! grep -qE '(^|[[:space:]])gdm([[:space:]\\]|$)' desktop/Containerfile
