@@ -143,6 +143,22 @@ RUN dnf -y install dnf5-plugins \
     && dnf5 -y copr disable avengemedia/danklinux \
     && dnf clean all
 
+# dms-greeter's own /usr/lib/tmpfiles.d/dms-greeter.conf declares these two
+# directories (same paths/modes/owners as below), but that's only applied by
+# systemd-tmpfiles-setup.service at boot — and on first boot it loses a race
+# against greetd.service, which starts dms-greeter before its cache dir
+# exists. dms-greeter's own wrapper script hard-exits 1 the instant
+# /var/cache/dms-greeter is missing ("Run 'dms greeter sync' to initialize
+# it"), which is exactly what was crash-looping greetd.service every boot.
+# Baking both directories in at build time (bootc does seed a container
+# image's /var content into a genuinely fresh install, just not into an
+# already-provisioned machine's `bootc update`) makes them present
+# unconditionally from the first boot, sidestepping the race entirely.
+RUN mkdir -p /var/cache/dms-greeter /var/lib/greeter \
+    && chown greeter:greeter /var/cache/dms-greeter /var/lib/greeter \
+    && chmod 0750 /var/cache/dms-greeter \
+    && chmod 0755 /var/lib/greeter
+
 # ============================== Developer experience (bluefin-dx-inspired) ==============================
 #
 # Ported from Bluefin DX's own documented component list, not a full 1:1
