@@ -80,7 +80,7 @@ Numbered steps, preserve the numbering when editing:
 3. Mask `systemd-remount-fs.service` (fails every boot on this composefs root — known upstream ostree/bootc issue, `static` unit so `disable` can't touch it) and enable `sshd.service`.
 4. Interactive dev tooling (`git`, `zsh`, `chezmoi`, `atuin`, `zoxide`, `htop`, `btop`, `distrobox`), zsh made the default shell for root and any account created afterwards.
 
-SELinux is left at Fedora's default `enforcing` in `base`. `server` flips it to `permissive` (K3s's CNI, KubeVirt's device plugin, Substrate's sandboxed actors all need more than targeted allows); `desktop` never touches it.
+SELinux is left at Fedora's default `enforcing` in `base`. Both `server` and `desktop` flip it to `permissive`, for unrelated reasons: `server` because K3s's CNI, KubeVirt's device plugin, and Substrate's sandboxed actors all need more than targeted allows; `desktop` because `dms-greeter` (a third-party Copr package, no real Fedora SELinux policy coverage under the generic `xdm_t` greeter domain) was failing `greetd.service` outright on first boot under enforcing — the most severe failure mode possible for this flavor, since it means the installed system never reaches a login screen.
 
 ## server/Containerfile
 

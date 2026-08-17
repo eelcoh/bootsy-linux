@@ -13,6 +13,19 @@ RUN printf 'FLAVOR=desktop\nVERSION=%s\nVCS_REF=%s\n' "$BOOTSY_VERSION" "$VCS_RE
 # Plus a bluefin-dx-inspired developer
 # experience layer (Homebrew, Docker, VS Code, mise, Ptyxis, Flatpak).
 
+# dms-greeter (installed below) is a third-party Copr package with no real
+# Fedora SELinux policy coverage for what it does at runtime: it runs under
+# the generic xdm_t greeter domain, whose policy was written for
+# gdm/sddm/lightdm/tuigreet, not a Quickshell-based greeter touching /proc
+# fds. Under base's default enforcing, that gap (plus at least one denial
+# seen against power-profiles-daemon reading /etc/passwd) was enough to
+# fail greetd.service outright on first boot — the most severe failure mode
+# possible for this flavor, since it means the installed system never
+# reaches a login screen. Same tradeoff server already makes for
+# K3s/KubeVirt/Substrate, for the same reason: targeted policy doesn't
+# cover what this flavor actually needs to run.
+RUN sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
+
 # ============================== Desktops ==============================
 #
 # Both DEs' packages plus their shared portal/audio/font stack, in one
@@ -223,9 +236,10 @@ EOF
 # `dnf5 repoquery`), so only dms-greeter itself needs the Copr.
 # policycoreutils-python-utils provides semanage, which the package's own
 # postinstall scriptlet uses (guarded, no-ops if absent) to label its files
-# with standard SELinux types (bin_t/user_home_dir_t/cache_home_t/usr_t) —
-# install it so that labeling actually happens under base's default
-# enforcing SELinux, which desktop never relaxes.
+# with standard SELinux types (bin_t/user_home_dir_t/cache_home_t/usr_t).
+# Worth keeping even now that desktop runs permissive (see above): it's
+# still what the postinstall scriptlet calls, and useful for any future
+# audit2allow/troubleshooting work.
 RUN dnf -y install dnf5-plugins \
     && dnf5 -y copr enable avengemedia/danklinux \
     && dnf -y install dms-greeter policycoreutils-python-utils \
