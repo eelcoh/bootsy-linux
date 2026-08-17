@@ -13,6 +13,17 @@ RUN printf 'FLAVOR=desktop\nVERSION=%s\nVCS_REF=%s\n' "$BOOTSY_VERSION" "$VCS_RE
 # Plus a bluefin-dx-inspired developer
 # experience layer (Homebrew, Docker, VS Code, mise, Ptyxis, Flatpak).
 
+# Section order below is cache-conscious, not just narrative: every
+# package-installing RUN (Desktops, dms-greeter, Developer experience) is
+# grouped up front, and the cheap, frequently-edited config/dotfiles/theming
+# steps (Session entries, Per-DE wiring, Login/session switching) come
+# after. Docker/buildx layer caching is positional — an edit to one
+# instruction invalidates every layer after it in the file — and this image
+# has its theming/dotfiles config edited far more often than its package
+# list, so keeping the expensive installs early means those routine edits
+# don't force a full uncached rebuild of Docker/Homebrew/VS Code/etc. every
+# time.
+
 # dms-greeter (installed below) is a third-party Copr package with no real
 # Fedora SELinux policy coverage for what it does at runtime: it runs under
 # the generic xdm_t greeter domain, whose policy was written for
@@ -100,6 +111,111 @@ COPY desktop/docs/ /usr/share/doc/bootsy/desktop/
 # Keeping every image in the standard system backgrounds hierarchy
 # makes the same collection available to each desktop's wallpaper picker.
 COPY wallpapers/ /usr/share/backgrounds/bootsy-linux/
+
+# ============================== dms-greeter ==============================
+#
+# dms-greeter (AvengeMedia's own companion project to DankMaterialShell) is
+# the second deliberate exception to this image family's "Fedora repos only,
+# no third-party repos" rule, alongside Docker's official repo below — it's
+# only published from the avengemedia/danklinux Copr, not Fedora's own repos.
+# Chosen over cosmic-greeter because it remembers the last user/session (like
+# cosmic-greeter, unlike gtkgreet/tuigreet) *and* syncs DMS's own wallpaper
+# and matugen theme into the login screen, matching the dynamic theming
+# wired up below — cosmic-greeter has neither. quickshell, its other
+# dependency besides greetd, is already in Fedora's own repos (confirmed via
+# `dnf5 repoquery`), so only dms-greeter itself needs the Copr.
+# policycoreutils-python-utils provides semanage, which the package's own
+# postinstall scriptlet uses (guarded, no-ops if absent) to label its files
+# with standard SELinux types (bin_t/user_home_dir_t/cache_home_t/usr_t).
+# Worth keeping even now that desktop runs permissive (see above): it's
+# still what the postinstall scriptlet calls, and useful for any future
+# audit2allow/troubleshooting work.
+#
+# Installed here, right after Desktops, rather than down in the Login/
+# session switching section with the rest of its wiring: this Copr
+# enable/install/disable is an expensive step, and grouping it with the
+# other package installs up front keeps it out of the way of the cheap,
+# frequently-edited config sections later in this file (see the note at
+# the top of this Containerfile).
+RUN dnf -y install dnf5-plugins \
+    && dnf5 -y copr enable avengemedia/danklinux \
+    && dnf -y install dms-greeter policycoreutils-python-utils \
+    && dnf5 -y copr disable avengemedia/danklinux \
+    && dnf clean all
+
+# ============================== Developer experience (bluefin-dx-inspired) ==============================
+#
+# Ported from Bluefin DX's own documented component list, not a full 1:1
+# clone (skips Incus, JetBrains Toolbox, GPU compute libs, and kernel
+# tracing tools — not asked for, easy to add later following this same
+# pattern): Homebrew for CLI tools, Docker for devcontainer workflows,
+# VS Code as the default editor, mise for per-project toolchains, Ptyxis
+# as a distrobox-integrated terminal alongside alacritty, and Flatpak for
+# graphical apps.
+#
+# Only the actual package/binary installs live here; each tool's cheap
+# per-user config/theming wiring (VS Code's DMS theme extension, Flatpak's
+# remote-add/app-install bootstrap service, etc.) lives further down with
+# the rest of Per-DE wiring, for the same cache-locality reason dms-greeter
+# was split above.
+
+# Docker Engine: Fedora's own repos don't ship docker-ce (Fedora pushes
+# podman instead), so this is the one deliberate departure from the
+# Fedora-only-no-third-party-repo rule the base/server images follow —
+# Docker's official repo is about as first-party as a third-party repo
+# gets. The config-manager subcommand isn't in dnf5 itself, it needs the
+# dnf5-plugins package first; syntax (`addrepo --from-repofile=`) also
+# differs from dnf4's `--add-repo`.
+RUN dnf -y install dnf5-plugins \
+    && dnf5 config-manager addrepo --from-repofile=https://download.docker.com/linux/fedora/docker-ce.repo \
+    && dnf -y install \
+    docker-ce \
+    docker-ce-cli \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-compose-plugin \
+    && dnf clean all \
+    && systemctl enable docker.service
+# Add your login user to the `docker` group after first boot (no user
+# account exists yet at build time): sudo usermod -aG docker $USER
+
+# Homebrew: bakes in via ublue-os/brew's own documented pattern rather than
+# running the installer at build time (Homebrew refuses to run as root,
+# which is what a Containerfile RUN step is). This COPY --from lands the
+# packed Homebrew tree plus a `brew-setup.service` that extracts it to
+# /var/home/linuxbrew/.linuxbrew and fixes ownership on first boot, when a
+# real non-root user context exists.
+COPY --from=ghcr.io/ublue-os/brew:latest /system_files /
+RUN systemctl enable brew-setup.service
+
+# VS Code: Microsoft's official repo, the standard documented install path.
+RUN rpm --import https://packages.microsoft.com/keys/microsoft.asc
+COPY <<-'EOF' /etc/yum.repos.d/vscode.repo
+[code]
+name=Visual Studio Code
+baseurl=https://packages.microsoft.com/yumrepos/vscode
+enabled=1
+gpgcheck=1
+gpgkey=https://packages.microsoft.com/keys/microsoft.asc
+EOF
+RUN dnf -y install code && dnf clean all
+
+# mise: not packaged by Fedora, installed via its own official script
+# straight to /usr/local/bin (MISE_INSTALL_PATH overrides its normal
+# per-user ~/.local/bin default, appropriate for a system image).
+RUN curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
+
+# Ptyxis (distrobox-integrated terminal) and Just (task runner): plain
+# Fedora 44 packages, no extra repo needed.
+RUN dnf -y install ptyxis just && dnf clean all
+
+# Flatpak + Flathub. The `flatpak` package itself installs to /usr and
+# upgrades normally; the actual remote-add/app-install happens in a
+# first-boot bootstrap service further down (see Per-DE wiring below) since
+# that writes under /var/lib/flatpak, which bootc doesn't re-seed on
+# `bootc update` of an already-provisioned machine, only on a genuinely
+# fresh deployment.
+RUN dnf -y install flatpak && dnf clean all
 
 # ============================== Session entries ==============================
 #
@@ -201,135 +317,12 @@ RUN mkdir -p '/usr/share/bootsy/dotfiles/dot_config/gtk-3.0' \
     && printf '[general]\nimport = ["~/.config/alacritty/dank-theme.toml"]\n' \
         > '/usr/share/bootsy/dotfiles/dot_config/alacritty/create_alacritty.toml'
 
-COPY niri/systemd/ /usr/lib/systemd/user/
-RUN systemctl --global enable bootsy-dotfiles-init.service bootsy-dotfiles-update.timer
-
-# cosmic: cosmic-config (the RON-based settings store every COSMIC
-# component uses) layers ~/.config/cosmic (highest) > /etc/xdg/cosmic
-# (admin override) > /usr/share/cosmic (vendor default, RPM-owned) — write
-# an /etc/xdg/cosmic override to point at Fedora's other official wallpaper
-# set instead of editing the package-owned vendor file.
-RUN mkdir -p /etc/xdg/cosmic/com.system76.CosmicBackground/v1
-COPY <<-'EOF' /etc/xdg/cosmic/com.system76.CosmicBackground/v1/all
-(
-    output: "all",
-    source: Path("/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp"),
-    filter_by_theme: true,
-    rotation_frequency: 3600,
-    filter_method: Lanczos,
-    scaling_mode: Zoom,
-    sampling_method: Alphanumeric,
-)
-EOF
-
-# ============================== Login / session switching ==============================
-#
-# dms-greeter (AvengeMedia's own companion project to DankMaterialShell) is
-# the second deliberate exception to this image family's "Fedora repos only,
-# no third-party repos" rule, alongside Docker's official repo above — it's
-# only published from the avengemedia/danklinux Copr, not Fedora's own repos.
-# Chosen over cosmic-greeter because it remembers the last user/session (like
-# cosmic-greeter, unlike gtkgreet/tuigreet) *and* syncs DMS's own wallpaper
-# and matugen theme into the login screen, matching the dynamic theming
-# wired up above — cosmic-greeter has neither. quickshell, its other
-# dependency besides greetd, is already in Fedora's own repos (confirmed via
-# `dnf5 repoquery`), so only dms-greeter itself needs the Copr.
-# policycoreutils-python-utils provides semanage, which the package's own
-# postinstall scriptlet uses (guarded, no-ops if absent) to label its files
-# with standard SELinux types (bin_t/user_home_dir_t/cache_home_t/usr_t).
-# Worth keeping even now that desktop runs permissive (see above): it's
-# still what the postinstall scriptlet calls, and useful for any future
-# audit2allow/troubleshooting work.
-RUN dnf -y install dnf5-plugins \
-    && dnf5 -y copr enable avengemedia/danklinux \
-    && dnf -y install dms-greeter policycoreutils-python-utils \
-    && dnf5 -y copr disable avengemedia/danklinux \
-    && dnf clean all
-
-# cosmic-desktop's group still hard-Requires cosmic-greeter (see the Desktops
-# section above), so it's installed and its unit needs disabling explicitly;
-# dms-greeter isn't wired into the display-manager.service alias the way
-# cosmic-greeter is, so greetd's own generic unit is what actually needs
-# enabling, pointed at dms-greeter via a hand-written config.toml.
-RUN systemctl disable cosmic-greeter.service
-
-COPY <<-'EOF' /etc/greetd/config.toml
-[terminal]
-vt = 1
-
-[default_session]
-user = "greeter"
-command = "/usr/bin/dms-greeter --command niri"
-EOF
-
-RUN systemctl enable --force greetd.service
-
-# dms-greeter ships its own bundled default niri config
-# (Modules/Greetd/assets/dms-niri.kdl) as a fallback, so the login screen is
-# fully functional out of the box, just generically themed. Getting it to
-# actually show Bootsy's wallpaper/theme requires `dms-greeter sync`, which
-# reads *a real user's* ~/.config/DankMaterialShell — nothing this image can
-# do at build time or unattended on first boot before that user exists. Per
-# dms-greeter's own docs this is meant to be a one-time admin action anyway
-# (see README.md's "First boot" section for the exact command).
-
-# ============================== Developer experience (bluefin-dx-inspired) ==============================
-#
-# Ported from Bluefin DX's own documented component list, not a full 1:1
-# clone (skips Incus, JetBrains Toolbox, GPU compute libs, and kernel
-# tracing tools — not asked for, easy to add later following this same
-# pattern): Homebrew for CLI tools, Docker for devcontainer workflows,
-# VS Code as the default editor, mise for per-project toolchains, Ptyxis
-# as a distrobox-integrated terminal alongside alacritty, and Flatpak for
-# graphical apps.
-
-# Docker Engine: Fedora's own repos don't ship docker-ce (Fedora pushes
-# podman instead), so this is the one deliberate departure from the
-# Fedora-only-no-third-party-repo rule the base/server images follow —
-# Docker's official repo is about as first-party as a third-party repo
-# gets. The config-manager subcommand isn't in dnf5 itself, it needs the
-# dnf5-plugins package first; syntax (`addrepo --from-repofile=`) also
-# differs from dnf4's `--add-repo`.
-RUN dnf -y install dnf5-plugins \
-    && dnf5 config-manager addrepo --from-repofile=https://download.docker.com/linux/fedora/docker-ce.repo \
-    && dnf -y install \
-    docker-ce \
-    docker-ce-cli \
-    containerd.io \
-    docker-buildx-plugin \
-    docker-compose-plugin \
-    && dnf clean all \
-    && systemctl enable docker.service
-# Add your login user to the `docker` group after first boot (no user
-# account exists yet at build time): sudo usermod -aG docker $USER
-
-# Homebrew: bakes in via ublue-os/brew's own documented pattern rather than
-# running the installer at build time (Homebrew refuses to run as root,
-# which is what a Containerfile RUN step is). This COPY --from lands the
-# packed Homebrew tree plus a `brew-setup.service` that extracts it to
-# /var/home/linuxbrew/.linuxbrew and fixes ownership on first boot, when a
-# real non-root user context exists.
-COPY --from=ghcr.io/ublue-os/brew:latest /system_files /
-RUN systemctl enable brew-setup.service
-
-# VS Code: Microsoft's official repo, the standard documented install path.
-RUN rpm --import https://packages.microsoft.com/keys/microsoft.asc
-COPY <<-'EOF' /etc/yum.repos.d/vscode.repo
-[code]
-name=Visual Studio Code
-baseurl=https://packages.microsoft.com/yumrepos/vscode
-enabled=1
-gpgcheck=1
-gpgkey=https://packages.microsoft.com/keys/microsoft.asc
-EOF
-RUN dnf -y install code && dnf clean all
-
 # DMS's VS Code integration ships as an actual extension (a theme JSON with
 # "_watch": true per theme, which VS Code reloads live on disk changes) that
 # DMS's matugen template writes into once installed — there's no config file
 # to seed the way GTK/alacritty needed above, but the extension itself has to
 # be installed per-user, so it gets the same one-time first-login service
-# pattern already used for the chezmoi dotfiles init above.
+# pattern already used for the chezmoi dotfiles init below.
 COPY <<-'EOF' /usr/lib/systemd/user/vscode-dms-theme.service
 [Unit]
 Description=Install DMS's dynamic-theme VS Code extension
@@ -352,33 +345,36 @@ RUN mkdir -p '/usr/share/bootsy/dotfiles/dot_config/Code/User' \
     && printf '{\n  "workbench.colorTheme": "Dynamic Base16 DankShell"\n}\n' \
     > '/usr/share/bootsy/dotfiles/dot_config/Code/User/create_settings.json'
 
-# mise: not packaged by Fedora, installed via its own official script
-# straight to /usr/local/bin (MISE_INSTALL_PATH overrides its normal
-# per-user ~/.local/bin default, appropriate for a system image).
-RUN curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
+COPY niri/systemd/ /usr/lib/systemd/user/
+RUN systemctl --global enable bootsy-dotfiles-init.service bootsy-dotfiles-update.timer
 
-# Ptyxis (distrobox-integrated terminal) and Just (task runner): plain
-# Fedora 44 packages, no extra repo needed.
-RUN dnf -y install ptyxis just && dnf clean all
+# cosmic: cosmic-config (the RON-based settings store every COSMIC
+# component uses) layers ~/.config/cosmic (highest) > /etc/xdg/cosmic
+# (admin override) > /usr/share/cosmic (vendor default, RPM-owned) — write
+# an /etc/xdg/cosmic override to point at Fedora's other official wallpaper
+# set instead of editing the package-owned vendor file.
+RUN mkdir -p /etc/xdg/cosmic/com.system76.CosmicBackground/v1
+COPY <<-'EOF' /etc/xdg/cosmic/com.system76.CosmicBackground/v1/all
+(
+    output: "all",
+    source: Path("/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp"),
+    filter_by_theme: true,
+    rotation_frequency: 3600,
+    filter_method: Lanczos,
+    scaling_mode: Zoom,
+    sampling_method: Alphanumeric,
+)
+EOF
 
-# Flatpak + Flathub, for graphical apps outside the RPM/Homebrew tiers. Zen's
-# own Linux documentation recommends its Flathub build; install it system-wide
-# so every login sees the browser and its desktop entry, and set it as the
+# Flatpak: the Flathub remote add and app installs (Zen, Flatseal, Bazaar)
+# are deferred to this first-boot bootstrap service rather than run at build
+# time — see the `dnf -y install flatpak` step above for why (/var/lib/flatpak
+# isn't re-seeded by bootc on an already-provisioned machine). Zen's own
+# Linux documentation recommends its Flathub build; install it system-wide so
+# every login sees the browser and its desktop entry, and set it as the
 # default browser ahead of the native Firefox package installed above.
 # Flatseal manages per-app Flatpak permissions; Bazaar (the same Flathub app
 # store Bluefin ships) gives a GUI for installing anything else from Flathub.
-#
-# The `flatpak` package itself installs to /usr and upgrades normally, but
-# `flatpak remote-add --system`/`flatpak install --system` both write under
-# /var/lib/flatpak. bootc only seeds a container image's /var content into a
-# genuinely fresh deployment; on `bootc update` of an already-provisioned
-# machine, /var is left alone, so content added there by a build-time RUN
-# here would silently never appear on any system that isn't freshly
-# installed. So, same as KubeVirt/Agent Substrate/PostgreSQL in
-# server/Containerfile, the actual remote-add/install happens in a
-# first-boot bootstrap service instead.
-RUN dnf -y install flatpak && dnf clean all
-
 COPY <<-'EOF' /usr/local/bin/bootstrap-flatpak.sh
 #!/bin/bash
 set -e
@@ -432,6 +428,39 @@ image/jpeg=org.gnome.Loupe.desktop
 image/png=org.gnome.Loupe.desktop
 text/plain=org.gnome.TextEditor.desktop
 EOF
+
+# ============================== Login / session switching ==============================
+#
+# dms-greeter itself was installed early, up with the other package installs
+# (see the dms-greeter section above) — this section is just its cheap
+# runtime wiring.
+#
+# cosmic-desktop's group still hard-Requires cosmic-greeter (see the Desktops
+# section above), so it's installed and its unit needs disabling explicitly;
+# dms-greeter isn't wired into the display-manager.service alias the way
+# cosmic-greeter is, so greetd's own generic unit is what actually needs
+# enabling, pointed at dms-greeter via a hand-written config.toml.
+RUN systemctl disable cosmic-greeter.service
+
+COPY <<-'EOF' /etc/greetd/config.toml
+[terminal]
+vt = 1
+
+[default_session]
+user = "greeter"
+command = "/usr/bin/dms-greeter --command niri"
+EOF
+
+RUN systemctl enable --force greetd.service
+
+# dms-greeter ships its own bundled default niri config
+# (Modules/Greetd/assets/dms-niri.kdl) as a fallback, so the login screen is
+# fully functional out of the box, just generically themed. Getting it to
+# actually show Bootsy's wallpaper/theme requires `dms-greeter sync`, which
+# reads *a real user's* ~/.config/DankMaterialShell — nothing this image can
+# do at build time or unattended on first boot before that user exists. Per
+# dms-greeter's own docs this is meant to be a one-time admin action anyway
+# (see README.md's "First boot" section for the exact command).
 
 # ============================== Boot target ==============================
 #
