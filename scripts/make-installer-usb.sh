@@ -136,8 +136,12 @@ if [[ "$CONFIRM" != "$DEVICE" ]]; then
 	exit 1
 fi
 
-# Unmount any mounted partitions on the target device first.
-for part in $(lsblk -no NAME,MOUNTPOINT "$DEVICE" | awk '$2 != "" {print $1}'); do
+# Unmount any mounted partitions on the target device first. -r (raw) is
+# required here: lsblk's default NAME column is tree-formatted for child
+# devices (e.g. "└─sdb1"), which would otherwise get fed straight into
+# umount as a bogus path like "/dev/└─sdb1" and, under set -e, kill the
+# script every time the stick has a mounted partition.
+for part in $(lsblk -rno NAME,MOUNTPOINT "$DEVICE" | awk '$2 != "" {print $1}'); do
 	echo "Unmounting /dev/$part"
 	umount "/dev/$part"
 done
