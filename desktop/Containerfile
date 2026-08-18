@@ -121,15 +121,25 @@ COPY wallpapers/ /usr/share/backgrounds/bootsy-linux/
 # Chosen over cosmic-greeter because it remembers the last user/session (like
 # cosmic-greeter, unlike gtkgreet/tuigreet) *and* syncs DMS's own wallpaper
 # and matugen theme into the login screen, matching the dynamic theming
-# wired up below — cosmic-greeter has neither. quickshell, its other
-# dependency besides greetd, is already in Fedora's own repos (confirmed via
-# `dnf5 repoquery`), so only dms-greeter itself needs the Copr.
+# wired up below — cosmic-greeter has neither.
 # policycoreutils-python-utils provides semanage, which the package's own
 # postinstall scriptlet uses (guarded, no-ops if absent) to label its files
 # with standard SELinux types (bin_t/user_home_dir_t/cache_home_t/usr_t).
 # Worth keeping even now that desktop runs permissive (see above): it's
 # still what the postinstall scriptlet calls, and useful for any future
 # audit2allow/troubleshooting work.
+#
+# quickshell itself comes from the Desktops section above (a DankMaterialShell
+# dependency, satisfied there from Fedora's own repos) — but dms-greeter's own
+# shell.qml uses a `pragma AppId` that Fedora's quickshell build (0.2.1) predates,
+# which made greetd crash-loop with "greeter exited without creating a session"
+# and no visible error anywhere (quickshell's own stderr never reaches greetd's
+# or niri's logs — it's spawned via niri's systemd-run --user --scope wrapping).
+# Tracked down by redirecting quickshell's own stdout/stderr straight to a file
+# from a standalone test niri config, which showed the real failure:
+# `ERROR: Unrecognized pragma "AppId com.danklinux.dms"`. So this Copr also
+# upgrades quickshell to whatever newer build dms-greeter was actually built
+# against, keeping the two version-matched the way avengemedia intends.
 #
 # Installed here, right after Desktops, rather than down in the Login/
 # session switching section with the rest of its wiring: this Copr
@@ -140,6 +150,7 @@ COPY wallpapers/ /usr/share/backgrounds/bootsy-linux/
 RUN dnf -y install dnf5-plugins \
     && dnf5 -y copr enable avengemedia/danklinux \
     && dnf -y install dms-greeter policycoreutils-python-utils \
+    && dnf -y upgrade quickshell \
     && dnf5 -y copr disable avengemedia/danklinux \
     && dnf clean all
 
