@@ -170,6 +170,22 @@ RUN mkdir -p /var/cache/dms-greeter /var/lib/greeter \
     && chmod 0750 /var/cache/dms-greeter \
     && chmod 0755 /var/lib/greeter
 
+# Without a saved choice, dms-greeter's session picker (finalizeSessionSelection
+# in Modules/Greetd/GreeterContent.qml) defaults to whichever entry under
+# /usr/share/wayland-sessions it happens to enumerate first — COSMIC, since it
+# sorts before Niri — until a real login writes its own selection to
+# .local/state/memory.json under the cache dir above. Seed that file at build
+# time instead so a fresh install already defaults to Niri, this flavor's
+# primary DE; logging into either session overwrites this the normal way from
+# then on. lastSessionDesktopId is matched against the wayland-sessions
+# filename (see desktopIdFromPath() in the same file), not the Name= field.
+RUN mkdir -p /var/cache/dms-greeter/.local/state \
+    && printf '{\n  "lastSessionDesktopId": "niri.desktop"\n}\n' \
+        > /var/cache/dms-greeter/.local/state/memory.json \
+    && chown -R greeter:greeter /var/cache/dms-greeter/.local \
+    && chmod 0750 /var/cache/dms-greeter/.local /var/cache/dms-greeter/.local/state \
+    && chmod 0640 /var/cache/dms-greeter/.local/state/memory.json
+
 # ============================== Developer experience (bluefin-dx-inspired) ==============================
 #
 # Ported from Bluefin DX's own documented component list, not a full 1:1
@@ -251,11 +267,32 @@ RUN dnf -y install flatpak && dnf clean all
 # the graphical greeter always offers these stable names and commands.
 RUN mkdir -p /usr/share/wayland-sessions
 
+# greetd hands off from dms-greeter straight to whichever of these Exec=
+# commands was picked, on the same VT — but niri-session/cosmic-session's own
+# early startup (e.g. niri-session's `systemctl --user import-environment`,
+# which prints "Calling import-environment without a list of variable names
+# is deprecated" to stderr) still writes to that raw VT before the compositor
+# itself takes over and starts painting, producing a brief visible flash of
+# console text between the login screen and the desktop. dms-greeter's own
+# wrapper script already clears the VT the same way before *it* starts (see
+# clear_vt() in the dms-greeter section above); this wrapper applies that
+# same fix to the handoff on the other side of login, since greetd invokes
+# Exec= directly via execve with no shell in between (GreeterContent.qml
+# splits it on whitespace, so this takes the real session command as a
+# literal argv entry rather than a shell string).
+COPY <<-'EOF' /usr/local/bin/bootsy-clear-vt-exec
+#!/bin/bash
+set -e
+printf '\033[2J\033[H\033[3J\033[?25l' > /dev/tty 2>/dev/null || true
+exec "$@"
+EOF
+RUN chmod +x /usr/local/bin/bootsy-clear-vt-exec
+
 COPY <<-'EOF' /usr/share/wayland-sessions/niri.desktop
 [Desktop Entry]
-Name=Niri (DankMaterialShell)
+Name=Niri
 Comment=A scrollable-tiling Wayland compositor
-Exec=niri-session
+Exec=/usr/local/bin/bootsy-clear-vt-exec niri-session
 Type=Application
 EOF
 
@@ -263,7 +300,7 @@ COPY <<-'EOF' /usr/share/wayland-sessions/cosmic.desktop
 [Desktop Entry]
 Name=COSMIC
 Comment=System76's Rust/Wayland desktop environment
-Exec=cosmic-session
+Exec=/usr/local/bin/bootsy-clear-vt-exec cosmic-session
 Type=Application
 EOF
 
@@ -311,6 +348,25 @@ RUN mkdir -p /usr/share/bootsy/dotfiles/dot_config/niri \
 RUN mkdir -p '/usr/share/bootsy/dotfiles/dot_local/state/DankMaterialShell' \
     && printf '{\n  "wallpaperPath": "/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp"\n}\n' \
     > '/usr/share/bootsy/dotfiles/dot_local/state/DankMaterialShell/create_session.json'
+
+# dms-greeter reads its own background from a *separate* copy of this same
+# session.json shape, at $DMS_GREET_CFG_DIR/session.json (SessionData.qml's
+# greeterSessionFile, default /var/cache/dms-greeter/session.json) — not the
+# per-user file above, and not automatically kept in sync with it (the
+# upstream docs' normal path is symlinking the two together by hand after a
+# real user runs `dms greeter sync`, which needs a logged-in user session to
+# read from and so can't happen unattended at build time or first boot). Seed
+# this copy with the same wallpaper directly instead, so the login screen
+# already shows Bootsy's default background before anyone has ever logged in
+# or run a sync, rather than dms-greeter's own generic bundled fallback.
+# Matugen-driven accent theming still requires a real `dms greeter sync` (see
+# the Login/session switching section below) since that depends on a
+# specific user's generated color palette, but the wallpaper itself doesn't.
+RUN mkdir -p /var/cache/dms-greeter \
+    && printf '{\n  "wallpaperPath": "/usr/share/backgrounds/bootsy-linux/bootsy-zircon-flow.webp"\n}\n' \
+    > /var/cache/dms-greeter/session.json \
+    && chown greeter:greeter /var/cache/dms-greeter/session.json \
+    && chmod 0640 /var/cache/dms-greeter/session.json
 
 # DMS's own default theme is a static preset ("purple"), not wallpaper-driven.
 # matugen (a hard dependency of the DankMaterialShell RPM, already installed)
@@ -482,12 +538,14 @@ RUN systemctl enable --force greetd.service
 
 # dms-greeter ships its own bundled default niri config
 # (Modules/Greetd/assets/dms-niri.kdl) as a fallback, so the login screen is
-# fully functional out of the box, just generically themed. Getting it to
-# actually show Bootsy's wallpaper/theme requires `dms-greeter sync`, which
-# reads *a real user's* ~/.config/DankMaterialShell — nothing this image can
-# do at build time or unattended on first boot before that user exists. Per
-# dms-greeter's own docs this is meant to be a one-time admin action anyway
-# (see README.md's "First boot" section for the exact command).
+# fully functional out of the box; its wallpaper already matches Bootsy's
+# desktop default too, via the /var/cache/dms-greeter/session.json seeded in
+# Per-DE wiring above. Matugen's actual accent-color theming still requires
+# `dms-greeter sync`, which reads *a real user's* ~/.config/DankMaterialShell
+# — nothing this image can do at build time or unattended on first boot
+# before that user exists. Per dms-greeter's own docs this is meant to be a
+# one-time admin action anyway (see README.md's "First boot" section for the
+# exact command).
 
 # ============================== Boot target ==============================
 #
